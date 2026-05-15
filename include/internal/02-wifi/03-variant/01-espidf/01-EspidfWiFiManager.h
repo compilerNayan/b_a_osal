@@ -15,7 +15,7 @@
 #include "logger/ILogger.h"
 
 /* @Component */
-class WiFiClient : public IWiFiManager {
+class EspidfWiFiManager : public IWiFiManager {
     Private EventGroupHandle_t wifiEventGroup;
     Private StdString ssid;
     Private StdString password;
@@ -28,20 +28,20 @@ class WiFiClient : public IWiFiManager {
 
     Private Static Void EventHandler(VoidPtr arg, esp_event_base_t event_base,
                                     int32_t event_id, VoidPtr event_data) {
-        WiFiClient* client = static_cast<WiFiClient*>(arg);
+        EspidfWiFiManager* client = static_cast<EspidfWiFiManager*>(arg);
 
         if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
             client->status = WiFiConnectionStatus::Connecting;
-            client->logger->Info(Tag::Untagged, "[WiFiClient] STA started, attempting connect...");
+            client->logger->Info(Tag::Untagged, "[EspidfWiFiManager] STA started, attempting connect...");
             esp_wifi_connect();
         } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
             client->status = WiFiConnectionStatus::Failed;
-            client->logger->Warning(Tag::Untagged, "[WiFiClient] WiFi disconnected, retrying...");
+            client->logger->Warning(Tag::Untagged, "[EspidfWiFiManager] WiFi disconnected, retrying...");
             esp_wifi_connect();
         } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
             xEventGroupSetBits(client->wifiEventGroup, WIFI_CONNECTED_BIT);
             client->status = WiFiConnectionStatus::Connected;
-            client->logger->Info(Tag::Untagged, "[WiFiClient] Got IP address, WiFi connected!");
+            client->logger->Info(Tag::Untagged, "[EspidfWiFiManager] Got IP address, WiFi connected!");
         }
     }
 
@@ -54,7 +54,7 @@ class WiFiClient : public IWiFiManager {
         ESP_ERROR_CHECK(ret);
     }
 
-    Public Explicit WiFiClient(ILoggerPtr log) : logger(log) {
+    Public EspidfWiFiManager() {
         wifiEventGroup = xEventGroupCreate();
         status = WiFiConnectionStatus::Disconnected;
         InitNVS();
@@ -64,7 +64,7 @@ class WiFiClient : public IWiFiManager {
         this->ssid = ssid;
         this->password = password.has_value() ? password.value() : "";
 
-        logger->Info(Tag::Untagged, "[WiFiClient] Starting WiFi connection to SSID: " + ssid);
+        logger->Info(Tag::Untagged, "[EspidfWiFiManager] Starting WiFi connection to SSID: " + ssid);
 
         ESP_ERROR_CHECK(esp_netif_init());
         ESP_ERROR_CHECK(esp_event_loop_create_default());
@@ -101,7 +101,7 @@ class WiFiClient : public IWiFiManager {
     Public Virtual Void Disconnect() override {
         esp_wifi_disconnect();
         status = WiFiConnectionStatus::Disconnected;
-        logger->Info(Tag::Untagged, "[WiFiClient] Disconnected from WiFi");
+        logger->Info(Tag::Untagged, "[EspidfWiFiManager] Disconnected from WiFi");
     }
 
     Public Virtual Bool IsConnected() const override {
@@ -121,7 +121,7 @@ class WiFiClient : public IWiFiManager {
             return true;
         } else {
             status = WiFiConnectionStatus::Timeout;
-            logger->Error(Tag::Untagged, "[WiFiClient] Connection timed out");
+            logger->Error(Tag::Untagged, "[EspidfWiFiManager] Connection timed out");
             return false;
         }
     }
