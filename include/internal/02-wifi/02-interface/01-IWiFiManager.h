@@ -2,6 +2,7 @@
 #define IWIFI_MANAGER_INTERNAL_H
 
 #include <StandardDefines.h>
+#include "../01-type/01-WiFiConnectionStatus.h"
 
 DefineStandardPointers(IWiFiManager)
 class IWiFiManager {
