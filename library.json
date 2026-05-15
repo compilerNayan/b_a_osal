@@ -1,0 +1,13 @@
+{
+    "name": "b_a_osal",
+    "version": "1.0.0",
+    "description": "OS Abstraction Layer for Spring Boot Plus Plus Framework",
+    "keywords": ["osal", "abstraction", "os"],
+    "authors": [{"name": "Nayan"}],
+    "license": "MIT",
+    "frameworks": "*",
+    "platforms": "*",
+    "dependencies": {
+        "a_core": "https://github.com/compilerNayan/a_core.git"
+    }
+}
