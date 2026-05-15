@@ -19,6 +19,7 @@
 #include "../../01-interface/01-IWiFiManager.h"
 #include "../../../logger/ILogger.h"
 
+/* @Component */
 class WiFiClient : public IWiFiManager {
     Private EventGroupHandle_t wifiEventGroup;
     Private StdString ssid;
