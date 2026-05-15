@@ -5,10 +5,6 @@
 #include <StandardDefines.h>
 #include "../../01-interface/01-IWiFiManager.h"
 
-#ifndef WIFI_CLIENT_H
-#define WIFI_CLIENT_H
-
-#include <StandardDefines.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "esp_wifi.h"
@@ -16,7 +12,6 @@
 #include "nvs_flash.h"
 #include "esp_netif.h"
 
-#include "../../01-interface/01-IWiFiManager.h"
 #include "logger/ILogger.h"
 
 /* @Component */
