@@ -13,7 +13,6 @@ class IWiFiManager {
     Public Virtual Bool IsConnected() const = 0;
     Public Virtual Bool WaitForConnection(Int timeoutMs) = 0;
     Public Virtual WiFiConnectionStatus GetStatus() const = 0;
-    Public Virtual Bool WaitForConnection(Int timeoutMs) = 0;
     Public Virtual Optional<StdString> GetIPAddress() const = 0;
     Public Virtual StdString GetMACAddress() const = 0;
     Public Virtual StdVector<StdString> ScanNetworks() const = 0;
