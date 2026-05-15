@@ -17,7 +17,7 @@
 #include "esp_netif.h"
 
 #include "../../01-interface/01-IWiFiManager.h"
-#include "../../../logger/ILogger.h"
+#include "logger/ILogger.h"
 
 /* @Component */
 class WiFiClient : public IWiFiManager {
