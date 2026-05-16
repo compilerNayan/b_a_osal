@@ -10,7 +10,7 @@ class IServer {
     
     Public Virtual Bool Start() = 0;
     Public Virtual Bool Stop() = 0;
-    Public Virtual Bool IsRunning() Const = 0;
+    Public Virtual Bool IsRunning() const = 0;
     Public Virtual Bool Restart() = 0;
     
     Public Virtual Optional<IoTMessage> ReceiveMessage() = 0;

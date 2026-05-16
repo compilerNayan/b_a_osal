@@ -86,7 +86,7 @@ class EspidfTcpServer final : public IServer {
         return true;
     }
     
-    Public Virtual Bool IsRunning() Const override {
+    Public Virtual Bool IsRunning() const override {
         return running_;
     }
     
