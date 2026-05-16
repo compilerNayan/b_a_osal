@@ -74,23 +74,12 @@ class EspidfAwsIotCoreServer final : public IServer {
         deviceCert = configProvider->GetDeviceCert();
         privateKey = configProvider->GetPrivateKey();
 
-        const esp_mqtt_client_config_t mqtt_cfg = {
-            .broker = {
-                .address = {
-                    .uri = brokerUri.c_str(),
-                },
-                .verification = {
-                    .certificate = caCert.c_str(),
-                },
-            },
-            .credentials = {
-                .client_id = clientId.c_str(),
-                .authentication = {
-                    .certificate = deviceCert.c_str(),
-                    .key = privateKey.c_str(),
-                },
-            },
-        };
+        esp_mqtt_client_config_t mqtt_cfg = {};
+        mqtt_cfg.broker.address.uri = brokerUri.c_str();
+        mqtt_cfg.broker.verification.certificate = caCert.c_str();
+        mqtt_cfg.credentials.client_id = clientId.c_str();
+        mqtt_cfg.credentials.authentication.certificate = deviceCert.c_str();
+        mqtt_cfg.credentials.authentication.key = privateKey.c_str();
 
         client = esp_mqtt_client_init(&mqtt_cfg);
         esp_mqtt_client_register_event(client, MQTT_EVENT_ANY,
