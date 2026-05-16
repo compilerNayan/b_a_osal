@@ -33,12 +33,19 @@ class EspidfTcpServer final : public IServer {
     Private UInt port_;
     Private ULong receivedMessageCount_;
     Private ULong sentMessageCount_;
-    Private Cache<StdString, SocketEntry> socketCache_; // GUID → socket entry
+    Private Cache<StdString, std::shared_ptr<SocketEntry>> socketCache_;
     
     /* @Autowired */
     Private ILoggerPtr logger;
 
-    Public Explicit EspidfTcpServer() : socketCache_(180000) {} // default TTL = 180s
+    Public Explicit EspidfTcpServer()
+        : serverSock_(-1),
+        running_(false),
+        port_(0),
+        receivedMessageCount_(0),
+        sentMessageCount_(0),
+        socketCache_(180000) {
+    }
     
     Public Virtual ~EspidfTcpServer() {
         Stop();
@@ -121,8 +128,7 @@ class EspidfTcpServer final : public IServer {
         msg.address = std::nullopt; // no socket ID exposed
     
         // Store socket in cache with TTL
-        SocketEntry entry{ clientSock };
-        socketCache_.Put(msg.guid, entry);
+        socketCache_.Put(msg.guid, std::make_shared<SocketEntry>(clientSock));
     
         receivedMessageCount_++;
         logger->Info(Tag::Untagged, "Message received, GUID=" + msg.guid);
@@ -138,7 +144,7 @@ class EspidfTcpServer final : public IServer {
             return false;
         }
     
-        Int clientSock = sockOpt.value().sock;
+        Int clientSock = sockOpt.value()->sock;
         Int sent = send(clientSock, msg.payload.c_str(), msg.payload.size(), 0);
     
         // Remove from cache → destructor closes socket
