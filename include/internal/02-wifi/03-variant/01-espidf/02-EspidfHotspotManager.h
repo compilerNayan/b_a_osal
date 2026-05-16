@@ -145,11 +145,6 @@ class EspidfHotspotManager : public IHotspotManager {
         Optional<CStdString> pwd = password.empty() ? Optional<CStdString>{} : Optional<CStdString>(password);
         return Start(ssid, pwd);
     }
-
-    Public Static IHotspotManagerPtr GetInstance() {
-        static IHotspotManagerPtr instance(new EspidfHotspotManager());
-        return instance;
-    }
 };
 
 #endif // ESPIDF_HOTSPOT_MANAGER_INTERNAL_H
