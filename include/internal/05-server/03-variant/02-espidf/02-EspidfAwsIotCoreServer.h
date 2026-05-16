@@ -56,7 +56,7 @@ class EspidfAwsIotCoreServer final : public IServer {
         Stop();
     }
 
-    Public Virtual Bool Start() override {
+    Public Bool Start() override {
         if (running) return true;
 
         esp_mqtt_client_config_t mqtt_cfg = {};
@@ -76,7 +76,7 @@ class EspidfAwsIotCoreServer final : public IServer {
         return true;
     }
 
-    Public Virtual Bool Stop() override {
+    Public Bool Stop() override {
         if (!running) return false;
         if (client) {
             esp_mqtt_client_stop(client);
@@ -88,17 +88,17 @@ class EspidfAwsIotCoreServer final : public IServer {
         return true;
     }
 
-    Public Virtual Bool IsRunning() const override {
+    Public Bool IsRunning() const override {
         return running;
     }
 
-    Public Virtual Bool Restart() override {
+    Public Bool Restart() override {
         Stop();
         return Start();
     }
 
     // Subscribe dynamically and return buffered messages
-    Public Virtual Optional<IoTMessage> ReceiveMessage(Optional<StdString> receiveTopic = std::nullopt) override {
+    Public Optional<IoTMessage> ReceiveMessage(Optional<StdString> receiveTopic = std::nullopt) override {
         if(!receiveTopic.has_value()) {
             logger->Error(Tag::Untagged, "ReceiveMessage called without a receive topic");
             return std::nullopt;
@@ -131,7 +131,7 @@ class EspidfAwsIotCoreServer final : public IServer {
         return std::nullopt;
     }
 
-    Public Virtual Bool SendMessage(CIoTMessage& msg, Optional<StdString> sendTopic) override {
+    Public Bool SendMessage(CIoTMessage& msg, Optional<StdString> sendTopic) override {
         if(!sendTopic.has_value()) {
             logger->Error(Tag::Untagged, "SendMessage called without a send topic");
             return false;
