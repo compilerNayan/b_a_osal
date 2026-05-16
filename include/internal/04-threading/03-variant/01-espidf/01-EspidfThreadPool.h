@@ -35,9 +35,9 @@ class EspidfThreadPool final : public IThreadPool {
 
     Private SemaphoreHandle_t mutex;
     Private SemaphoreHandle_t allDone;
-    Private volatile Bool shutdownFlag;
-    Private volatile Bool shutdownNowFlag;
-    Private volatile Size runningCount;
+    Private Bool shutdownFlag;
+    Private Bool shutdownNowFlag;
+    Private Size runningCount;
 
     Private Void OnTaskComplete() {
         if (xSemaphoreTake(mutex, portMAX_DELAY) == pdTRUE) {
