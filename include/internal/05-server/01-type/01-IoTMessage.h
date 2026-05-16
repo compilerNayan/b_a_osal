@@ -3,6 +3,7 @@
 
 #include <StandardDefines.h>
 
+DefineStandardTypes(IoTMessage)
 struct IoTMessage {
     StdString guid;                 // unique ID per message
     StdString payload;              // actual message content
