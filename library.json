@@ -9,8 +9,5 @@
     "platforms": "*",
     "dependencies": {
         "a_core": "https://github.com/compilerNayan/a_core.git"
-    }, 
-    "build": {
-        "extraScript": "script/enable_exceptions.py"
     }
 }
