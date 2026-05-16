@@ -45,12 +45,12 @@ class EspidfAwsIotCoreServer final : public IServer {
             IoTMessage msg;
             msg.guid = GuidUtil::GenerateGuid();
             msg.payload = StdString(event->data, event->data_len);
-            msg.address = StdString(event->topic, event->topic_len);
+            StdString topicx = StdString(event->topic, event->topic_len);
 
-            server->bufferedMessages[msg.address.value()].push_back(msg);
+            server->bufferedMessages[topicx].push_back(msg);
             server->logger->Info(Tag::Untagged,
                 "Buffered message GUID=" + msg.guid +
-                " topic=" + msg.address.value_or("") +
+                " topic=" + topicx +
                 " payload=" + msg.payload);
         }
     }
@@ -112,7 +112,7 @@ class EspidfAwsIotCoreServer final : public IServer {
         return Start();
     }
 
-    Public Optional<IoTMessage> ReceiveMessage(Optional<StdString> receiveTopic = std::nullopt) override {
+    Public Optional<IoTMessage> ReceiveMessage(Optional<StdString> receiveTopic) override {
         if (!receiveTopic.has_value()) {
             logger->Error(Tag::Untagged, "ReceiveMessage called without a receive topic");
             return std::nullopt;
@@ -133,7 +133,7 @@ class EspidfAwsIotCoreServer final : public IServer {
         queue.pop_front();
         logger->Info(Tag::Untagged,
             "Delivering GUID=" + msg.guid +
-            " topic=" + msg.address.value_or("") +
+            " topic=" + receiveTopic.value() +
             " payload=" + msg.payload);
         return msg;
     }
