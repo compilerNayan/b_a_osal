@@ -3,10 +3,10 @@
 
 #include <StandardDefines.h>
 
-DefineStandardTypes(IoTMessage)
 struct IoTMessage {
-    StdString guid;                 // unique ID per message
-    StdString payload;              // actual message content
+    StdString guid;
+    StdString payload;
+    Optional<StdString> address;  // MQTT topic or transport path
 };
 
 #endif // IOTMESSAGE_INTERNAL_H

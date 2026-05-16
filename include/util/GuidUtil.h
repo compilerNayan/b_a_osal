@@ -4,6 +4,7 @@
 #include "StandardDefines.h"
 #include <esp_timer.h>
 #include <esp_system.h>
+#include <esp_random.h>
 
 class GuidUtil {
     Public Static StdString GenerateGuid() {
