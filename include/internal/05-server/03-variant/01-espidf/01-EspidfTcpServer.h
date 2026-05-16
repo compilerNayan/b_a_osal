@@ -1,0 +1,126 @@
+#ifdef ESP_PLATFORM
+#ifndef ESPIDF_TCP_SERVER_INTERNAL_H
+#define ESPIDF_TCP_SERVER_INTERNAL_H
+
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <unistd.h>
+#include <cstring>
+#include <errno.h>
+#include <esp_timer.h>
+#include <esp_system.h>
+
+#include <StandardDefines.h>
+#include "../../02-interface/01-IServer.h"
+#include "../../01-type/01-IoTMessage.h"
+#include "util/Cache.h"  
+#include "util/GuidUtil.h"
+
+class EspidfTcpServer final : public IServer {
+    Private Int serverSock_;
+    Private Bool running_;
+    Private UInt port_;
+    Private ULong receivedMessageCount_;
+    Private ULong sentMessageCount_;
+    Private Cache<StdString, Int> socketCache_; // GUID → socket
+    
+    Public Explicit EspidfTcpServer() : socketCache_(180000) {} // default TTL = 180s
+    
+    Public Virtual ~EspidfTcpServer() {
+        Stop();
+    }
+    
+    Public Virtual Bool Start() override {
+        if (running_) return false;
+    
+        port_ = 8080;
+        serverSock_ = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
+        if (serverSock_ < 0) return false;
+    
+        sockaddr_in serverAddr{};
+        serverAddr.sin_family = AF_INET;
+        serverAddr.sin_port = htons(port_);
+        serverAddr.sin_addr.s_addr = htonl(INADDR_ANY);
+    
+        if (bind(serverSock_, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) < 0) {
+            close(serverSock_);
+            return false;
+        }
+    
+        if (listen(serverSock_, 5) < 0) {
+            close(serverSock_);
+            return false;
+        }
+    
+        running_ = true;
+        receivedMessageCount_ = 0;
+        sentMessageCount_ = 0;
+        return true;
+    }
+    
+    Public Virtual Bool Stop() override {
+        if (!running_) return false;
+        close(serverSock_);
+        running_ = false;
+        return true;
+    }
+    
+    Public Virtual Bool IsRunning() Const override {
+        return running_;
+    }
+    
+    Public Virtual Bool Restart() override {
+        Stop();
+        return Start();
+    }
+    
+    Public Virtual Optional<IoTMessage> ReceiveMessage() override {
+        if (!running_) return std::nullopt;
+    
+        sockaddr_in clientAddr{};
+        socklen_t addrLen = sizeof(clientAddr);
+        Int clientSock = accept(serverSock_, (struct sockaddr*)&clientAddr, &addrLen);
+        if (clientSock < 0) return std::nullopt;
+    
+        char buffer[1024];
+        Int len = recv(clientSock, buffer, sizeof(buffer)-1, 0);
+        if (len <= 0) {
+            close(clientSock);
+            return std::nullopt;
+        }
+        buffer[len] = '\0';
+    
+        IoTMessage msg;
+        msg.guid = GuidUtil::GenerateGuid();
+        msg.payload = StdString(buffer);
+        msg.address = std::nullopt; // no socket ID exposed
+    
+        // Store socket in cache with TTL
+        socketCache_.Put(msg.guid, clientSock);
+    
+        receivedMessageCount_++;
+        return msg;
+    }
+    
+    Public Virtual Bool SendMessage(const IoTMessage& msg) override {
+        if (!running_) return false;
+    
+        auto sockOpt = socketCache_.Get(msg.guid);
+        if (!sockOpt.has_value()) {
+            return false; // expired or not found
+        }
+    
+        Int clientSock = sockOpt.value();
+        Int sent = send(clientSock, msg.payload.c_str(), msg.payload.size(), 0);
+        close(clientSock);
+    
+        socketCache_.Remove(msg.guid); // cleanup after use
+    
+        if (sent <= 0) return false;
+        sentMessageCount_++;
+        return true;
+    }
+};
+
+#endif // ESPIDF_TCP_SERVER_INTERNAL_H
+#endif // ESP_PLATFORM
