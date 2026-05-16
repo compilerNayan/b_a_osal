@@ -15,7 +15,7 @@ class Cache {
     Private StdUnorderedMap<K, Entry> cache_;
     Private ULongLong defaultTtlMs_;
     
-    Private ULongLong Now() Const {
+    Private ULongLong Now() const {
         return static_cast<ULongLong>(esp_timer_get_time()); // µs
     }
     
@@ -61,7 +61,7 @@ class Cache {
         cache_.clear();
     }
     
-    Public Size Size() {
+    Public Size GetSize() {
         for (auto it = cache_.begin(); it != cache_.end();) {
             if (Now() > it->second.expiry) {
                 it = cache_.erase(it);
@@ -76,7 +76,7 @@ class Cache {
         defaultTtlMs_ = ttlMs;
     }
     
-    Public ULongLong GetDefaultTtl() Const {
+    Public ULongLong GetDefaultTtl() const {
         return defaultTtlMs_;
     }
 };

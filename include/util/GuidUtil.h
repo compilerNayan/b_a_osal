@@ -6,7 +6,7 @@
 #include <esp_system.h>
 
 class GuidUtil {
-    Public Static StdString Generate() {
+    Public Static StdString GenerateGuid() {
         // Simple pseudo-GUID using timestamp + random
         char buf[64];
         snprintf(buf, sizeof(buf), "%lu-%lu",
