@@ -34,6 +34,13 @@ class EspidfAwsIotCoreServer final : public IServer {
 
     Private StdUnorderedMap<StdString, StdDeque<IoTMessage>> bufferedMessages;
 
+    Private Static StdString BuildMqttUri(CStdString& endpoint) {
+        if (endpoint.find("://") != StdString::npos) {
+            return endpoint;
+        }
+        return "mqtts://" + endpoint + ":8883";
+    }
+
     Private Static Void MqttEventHandler(Void* handler_args,
                                          esp_event_base_t base,
                                          Int32 event_id,
@@ -68,7 +75,8 @@ class EspidfAwsIotCoreServer final : public IServer {
     Public Bool Start() override {
         if (running) return true;
 
-        brokerUri = configProvider->GetEndpoint();
+        StdString endpoint = configProvider->GetEndpoint();
+        brokerUri = BuildMqttUri(endpoint);
         clientId = configProvider->GetThingName();
         caCert = configProvider->GetCaCert();
         deviceCert = configProvider->GetDeviceCert();
@@ -82,12 +90,25 @@ class EspidfAwsIotCoreServer final : public IServer {
         mqtt_cfg.credentials.authentication.key = privateKey.c_str();
 
         client = esp_mqtt_client_init(&mqtt_cfg);
+        if (!client) {
+            logger->Error(Tag::Untagged,
+                "MQTT client init failed for uri=" + brokerUri);
+            return false;
+        }
+
         esp_mqtt_client_register_event(client, MQTT_EVENT_ANY,
                                        MqttEventHandler, this);
-        esp_mqtt_client_start(client);
+        if (esp_mqtt_client_start(client) != ESP_OK) {
+            logger->Error(Tag::Untagged,
+                "MQTT client start failed for uri=" + brokerUri);
+            esp_mqtt_client_destroy(client);
+            client = nullptr;
+            return false;
+        }
 
         running = true;
-        logger->Info(Tag::Untagged, "AWS IoT Core server started");
+        logger->Info(Tag::Untagged,
+            "AWS IoT Core server started uri=" + brokerUri);
         return true;
     }
 
