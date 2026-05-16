@@ -9,6 +9,9 @@
 #include "esp_err.h"
 #include <fstream>
 #include <sstream>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <cerrno>
 
 #include "logger/ILogger.h"
 
@@ -39,6 +42,19 @@ class EspidfFileManager : public IFileManager {
         }
     }
 
+    // Ensure directory exists (for FATFS/SD). On SPIFFS, this is harmless.
+    Private Void EnsureDirExists(const std::string& path) {
+        size_t pos = path.find_last_of('/');
+        if (pos == std::string::npos) return; // no directory component
+
+        std::string dir = path.substr(0, pos);
+        if (mkdir(dir.c_str(), 0777) != 0 && errno != EEXIST) {
+            logger->Error(Tag::Untagged, "[EspidfFileManager] Failed to create directory: " + dir);
+        } else {
+            logger->Info(Tag::Untagged, "[EspidfFileManager] Directory ensured: " + dir);
+        }
+    }
+
     Public EspidfFileManager() {
         mounted = false;
         InitSPIFFS();
@@ -47,6 +63,7 @@ class EspidfFileManager : public IFileManager {
     Public Virtual Bool Create(CStdString& filename, CStdString& contents) override {
         InitSPIFFS();
         std::string path = "/spiffs/" + filename;
+        EnsureDirExists(path);
         std::ofstream file(path, std::ios::out | std::ios::trunc);
         if (!file.is_open()) {
             logger->Error(Tag::Untagged, "[EspidfFileManager] Failed to create file: " + path);
@@ -76,6 +93,7 @@ class EspidfFileManager : public IFileManager {
     Public Virtual Bool Update(CStdString& filename, CStdString& contents) override {
         InitSPIFFS();
         std::string path = "/spiffs/" + filename;
+        EnsureDirExists(path);
         std::ofstream file(path, std::ios::out | std::ios::trunc);
         if (!file.is_open()) {
             logger->Error(Tag::Untagged, "[EspidfFileManager] Failed to update file: " + path);
@@ -101,6 +119,7 @@ class EspidfFileManager : public IFileManager {
     Public Virtual Bool Append(CStdString& filename, CStdString& contents) override {
         InitSPIFFS();
         std::string path = "/spiffs/" + filename;
+        EnsureDirExists(path);
         std::ofstream file(path, std::ios::out | std::ios::app);
         if (!file.is_open()) {
             logger->Error(Tag::Untagged, "[EspidfFileManager] Failed to append to file: " + path);
