@@ -102,8 +102,7 @@ class EspidfTcpServer final : public IServer {
         return Start();
     }
     
-    Public Virtual Optional<IoTMessage> ReceiveMessage(Optional<StdString> path) override {
-        path;
+    Public Virtual Optional<IoTMessage> ReceiveMessage(Optional<StdString> /* path */ = std::nullopt) override {
         if (!running_) return std::nullopt;
     
         sockaddr_in clientAddr{};
@@ -135,8 +134,7 @@ class EspidfTcpServer final : public IServer {
         return msg;
     }
     
-    Public Virtual Bool SendMessage(const IoTMessage& msg, Optional<StdString> path) override {
-        path;
+    Public Virtual Bool SendMessage(const IoTMessage& msg, Optional<StdString> /* path */ = std::nullopt) override {
         if (!running_) return false;
     
         auto sockOpt = socketCache_.Get(msg.guid);
