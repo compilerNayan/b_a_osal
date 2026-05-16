@@ -11,19 +11,33 @@
 #include <esp_system.h>
 
 #include <StandardDefines.h>
+#include "util/Cache.h"  
+#include "util/GuidUtil.h
+#include "logger/ILogger.h"
+
 #include "../../02-interface/01-IServer.h"
 #include "../../01-type/01-IoTMessage.h"
-#include "util/Cache.h"  
-#include "util/GuidUtil.h"
 
 class EspidfTcpServer final : public IServer {
+    Private struct SocketEntry {
+        Int sock;
+        ~SocketEntry() {
+            if (sock >= 0) {
+                close(sock); // ensure cleanup on expiry
+            }
+        }
+    };
+    
     Private Int serverSock_;
     Private Bool running_;
     Private UInt port_;
     Private ULong receivedMessageCount_;
     Private ULong sentMessageCount_;
-    Private Cache<StdString, Int> socketCache_; // GUID → socket
+    Private Cache<StdString, SocketEntry> socketCache_; // GUID → socket entry
     
+    /* @Autowired */
+    Private ILoggerPtr logger;
+
     Public Explicit EspidfTcpServer() : socketCache_(180000) {} // default TTL = 180s
     
     Public Virtual ~EspidfTcpServer() {
@@ -96,7 +110,8 @@ class EspidfTcpServer final : public IServer {
         msg.address = std::nullopt; // no socket ID exposed
     
         // Store socket in cache with TTL
-        socketCache_.Put(msg.guid, clientSock);
+        SocketEntry entry{ clientSock };
+        socketCache_.Put(msg.guid, entry);
     
         receivedMessageCount_++;
         return msg;
@@ -110,11 +125,11 @@ class EspidfTcpServer final : public IServer {
             return false; // expired or not found
         }
     
-        Int clientSock = sockOpt.value();
+        Int clientSock = sockOpt.value().sock;
         Int sent = send(clientSock, msg.payload.c_str(), msg.payload.size(), 0);
-        close(clientSock);
     
-        socketCache_.Remove(msg.guid); // cleanup after use
+        // Remove from cache → destructor closes socket
+        socketCache_.Remove(msg.guid);
     
         if (sent <= 0) return false;
         sentMessageCount_++;
