@@ -5,8 +5,8 @@
 #include <mqtt_client.h>
 #include <string>
 #include <optional>
+#include <deque>
 #include <unordered_map>
-#include <vector>
 
 #include <StandardDefines.h>
 
@@ -23,7 +23,9 @@ class EspidfAwsIotCoreServer final : public IServer {
 
     Private esp_mqtt_client_handle_t client;
     Private Bool running;
-    Private StdUnorderedMap<StdString, StdVector<StdString>> bufferedMessages;
+
+    // Buffer per topic
+    Private StdUnorderedMap<StdString, StdDeque<IoTMessage>> bufferedMessages;
 
     Private Static Void MqttEventHandler(Void* handler_args,
                                          esp_event_base_t base,
@@ -33,11 +35,16 @@ class EspidfAwsIotCoreServer final : public IServer {
         esp_mqtt_event_handle_t event = (esp_mqtt_event_handle_t)event_data;
 
         if (event->event_id == MQTT_EVENT_DATA) {
-            StdString topic(event->topic, event->topic_len);
-            StdString payload(event->data, event->data_len);
-            server->bufferedMessages[topic].push_back(payload);
+            IoTMessage msg;
+            msg.guid = "guid-" + std::to_string(esp_random());
+            msg.payload = StdString(event->data, event->data_len);
+            msg.address = StdString(event->topic, event->topic_len);
+
+            server->bufferedMessages[*msg.address].push_back(msg);
             server->logger->Info(Tag::Untagged,
-                "Received message topic=" + topic + " payload=" + payload);
+                "Buffered message GUID=" + msg.guid +
+                " topic=" + msg.address.value_or("") +
+                " payload=" + msg.payload);
         }
     }
 
@@ -90,25 +97,38 @@ class EspidfAwsIotCoreServer final : public IServer {
         return Start();
     }
 
-    Public Virtual Optional<IoTMessage> ReceiveMessage(Optional<StdString> receiveTopic) override {
+    // Subscribe dynamically and return buffered messages
+    Public Virtual Optional<IoTMessage> ReceiveMessage(Optional<StdString> receiveTopic = std::nullopt) override {
+        if(!receiveTopic.has_value()) {
+            logger->Error(Tag::Untagged, "ReceiveMessage called without a receive topic");
+            return std::nullopt;
+        }
+
+        StdString topic = receiveTopic.value();
         if (!running) return std::nullopt;
-        if (bufferedMessages.empty()) return std::nullopt;
 
-        Var it = bufferedMessages.begin();
-        if (it->second.empty()) return std::nullopt;
+        if (receiveTopic.has_value()) {
+            // Subscribe if not already buffering this topic
+            if (bufferedMessages.find(receiveTopic.value()) == bufferedMessages.end()) {
+                esp_mqtt_client_subscribe(client, receiveTopic.value().c_str(), 1);
+                logger->Info(Tag::Untagged, "Subscribed to new topic=" + receiveTopic.value());
+                return std::nullopt; // nothing yet
+            }
 
-        IoTMessage msg;
-        msg.guid = "guid-" + std::to_string(esp_random());
-        msg.payload = it->second.front();
-        it->second.erase(it->second.begin());
-        if (it->second.empty()) bufferedMessages.erase(it);
+            // Return next buffered message for this topic
+            auto& queue = bufferedMessages[receiveTopic.value()];
+            if (queue.empty()) return std::nullopt;
 
-        logger->Info(Tag::Untagged,
-            "Delivering GUID=" + msg.guid +
-            " topic=" + msg.address.value_or("") +
-            " payload=" + msg.payload);
+            IoTMessage msg = queue.front();
+            queue.pop_front();
+            logger->Info(Tag::Untagged,
+                "Delivering GUID=" + msg.guid +
+                " topic=" + msg.address.value_or("") +
+                " payload=" + msg.payload);
+            return msg;
+        }
 
-        return msg;
+        return std::nullopt;
     }
 
     Public Virtual Bool SendMessage(CIoTMessage& msg, Optional<StdString> sendTopic) override {
@@ -116,13 +136,11 @@ class EspidfAwsIotCoreServer final : public IServer {
             logger->Error(Tag::Untagged, "SendMessage called without a send topic");
             return false;
         }
-
         StdString topic = sendTopic.value();
         if (!running || !client) {
             logger->Warn(Tag::Untagged, "SendMessage called but server not running");
             return false;
         }
-        StdString topic = msg.address.value_or(configProvider->GetSendTopic());
         Int id = esp_mqtt_client_publish(client,
                                          topic.c_str(),
                                          msg.payload.c_str(),
