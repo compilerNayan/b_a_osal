@@ -12,7 +12,7 @@
 
 #include <StandardDefines.h>
 #include "util/Cache.h"  
-#include "util/GuidUtil.h
+#include "util/GuidUtil.h"
 #include "logger/ILogger.h"
 
 #include "../../02-interface/01-IServer.h"
@@ -49,7 +49,10 @@ class EspidfTcpServer final : public IServer {
     
         port_ = 8080;
         serverSock_ = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
-        if (serverSock_ < 0) return false;
+        if (serverSock_ < 0) {
+            logger->Error(Tag::Untagged, "Failed to create server socket");
+            return false;
+        }
     
         sockaddr_in serverAddr{};
         serverAddr.sin_family = AF_INET;
@@ -57,11 +60,13 @@ class EspidfTcpServer final : public IServer {
         serverAddr.sin_addr.s_addr = htonl(INADDR_ANY);
     
         if (bind(serverSock_, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) < 0) {
+            logger->Error(Tag::Untagged, "Bind failed");
             close(serverSock_);
             return false;
         }
     
         if (listen(serverSock_, 5) < 0) {
+            logger->Error(Tag::Untagged, "Listen failed");
             close(serverSock_);
             return false;
         }
@@ -69,6 +74,7 @@ class EspidfTcpServer final : public IServer {
         running_ = true;
         receivedMessageCount_ = 0;
         sentMessageCount_ = 0;
+        logger->Info(Tag::Untagged, "TCP server started on port 8080");
         return true;
     }
     
@@ -76,6 +82,7 @@ class EspidfTcpServer final : public IServer {
         if (!running_) return false;
         close(serverSock_);
         running_ = false;
+        logger->Info(Tag::Untagged, "TCP server stopped");
         return true;
     }
     
@@ -94,11 +101,15 @@ class EspidfTcpServer final : public IServer {
         sockaddr_in clientAddr{};
         socklen_t addrLen = sizeof(clientAddr);
         Int clientSock = accept(serverSock_, (struct sockaddr*)&clientAddr, &addrLen);
-        if (clientSock < 0) return std::nullopt;
+        if (clientSock < 0) {
+            logger->Error(Tag::Untagged, "Accept failed");
+            return std::nullopt;
+        }
     
         char buffer[1024];
         Int len = recv(clientSock, buffer, sizeof(buffer)-1, 0);
         if (len <= 0) {
+            logger->Error(Tag::Untagged, "Receive failed");
             close(clientSock);
             return std::nullopt;
         }
@@ -114,6 +125,7 @@ class EspidfTcpServer final : public IServer {
         socketCache_.Put(msg.guid, entry);
     
         receivedMessageCount_++;
+        logger->Info(Tag::Untagged, "Message received, GUID=" + msg.guid);
         return msg;
     }
     
@@ -122,7 +134,8 @@ class EspidfTcpServer final : public IServer {
     
         auto sockOpt = socketCache_.Get(msg.guid);
         if (!sockOpt.has_value()) {
-            return false; // expired or not found
+            logger->Error(Tag::Untagged, "Send failed: GUID expired or not found (" + msg.guid + ")");
+            return false;
         }
     
         Int clientSock = sockOpt.value().sock;
@@ -131,8 +144,13 @@ class EspidfTcpServer final : public IServer {
         // Remove from cache → destructor closes socket
         socketCache_.Remove(msg.guid);
     
-        if (sent <= 0) return false;
+        if (sent <= 0) {
+            logger->Error(Tag::Untagged, "Send failed for GUID=" + msg.guid);
+            return false;
+        }
+    
         sentMessageCount_++;
+        logger->Info(Tag::Untagged, "Message sent successfully, GUID=" + msg.guid);
         return true;
     }
 };
