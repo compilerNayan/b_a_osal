@@ -13,8 +13,8 @@ class IServer {
     Public Virtual Bool IsRunning() const = 0;
     Public Virtual Bool Restart() = 0;
     
-    Public Virtual Optional<IoTMessage> ReceiveMessage() = 0;
-    Public Virtual Bool SendMessage(const IoTMessage& msg) = 0;
+    Public Virtual Optional<IoTMessage> ReceiveMessage(Optional<StdString> path = std::nullopt) = 0;
+    Public Virtual Bool SendMessage(const IoTMessage& msg, Optional<StdString> path = std::nullopt) = 0;
 };
 
 #endif // ISERVER_INTERNAL_H

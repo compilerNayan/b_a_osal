@@ -125,7 +125,6 @@ class EspidfTcpServer final : public IServer {
         IoTMessage msg;
         msg.guid = GuidUtil::GenerateGuid();
         msg.payload = StdString(buffer);
-        msg.address = std::nullopt; // no socket ID exposed
     
         // Store socket in cache with TTL
         socketCache_.Put(msg.guid, std::make_shared<SocketEntry>(clientSock));
