@@ -4,9 +4,9 @@
 #include <StandardDefines.h>
 #include "../01-type/01-MqttMessage.h"
 
-DefineStandardPointers(IMMqttClient)
-class IMMqttClient {
-    Public Virtual ~IMMqttClient() = default;
+DefineStandardPointers(IMqttClient)
+class IMqttClient {
+    Public Virtual ~IMqttClient() = default;
     
     Public Virtual Bool Connect() = 0;
     Public Virtual Bool Disconnect() = 0;

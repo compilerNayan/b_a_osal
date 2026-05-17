@@ -18,7 +18,7 @@
 #include "../../02-interface/03-IAwsIotCoreConfigProvider.h"
 
 
-class EspidfMqttClient final : public IMMqttClient {
+class EspidfMqttClient final : public IMqttClient {
 
     /* @Autowired */
     Private IAwsIotCoreConfigProviderPtr configProvider;
