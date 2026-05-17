@@ -15,10 +15,10 @@
 #include "util/GuidUtil.h"
 #include "logger/ILogger.h"
 
-#include "../../02-interface/01-IServer.h"
-#include "../../01-type/01-IoTMessage.h"
+#include "../../02-interface/01-ITcpServer.h"
 
-class EspidfTcpServer final : public IServer {
+/* @Component */
+class EspidfTcpServer final : public ITcpServer {
     Private struct SocketEntry {
         Int sock;
         ~SocketEntry() {
@@ -102,7 +102,7 @@ class EspidfTcpServer final : public IServer {
         return Start();
     }
     
-    Public Virtual Optional<IoTMessage> ReceiveMessage(Optional<StdString> /* path */ = std::nullopt) override {
+    Public Virtual Optional<MqttMessage> ReceiveMessage() override {
         if (!running_) return std::nullopt;
     
         sockaddr_in clientAddr{};
@@ -134,7 +134,7 @@ class EspidfTcpServer final : public IServer {
         return msg;
     }
     
-    Public Virtual Bool SendMessage(const IoTMessage& msg, Optional<StdString> /* path */ = std::nullopt) override {
+    Public Virtual Bool SendMessage(const MqttMessage& msg) override {
         if (!running_) return false;
     
         auto sockOpt = socketCache_.Get(msg.guid);

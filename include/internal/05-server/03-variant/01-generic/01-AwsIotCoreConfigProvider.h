@@ -3,11 +3,10 @@
 
 #include <StandardDefines.h>
 
-#include "IAwsIotCoreConfigProvider.h"
-#include <StandardDefines.h>
+#include "../../02-interface/03-IAwsIotCoreConfigProvider.h"
 
 /* @Component */
-class AwsIotCoreConfigProvider : public IAwsIotCoreConfigProvider {
+class AwsIotCoreConfigProvider final : public IAwsIotCoreConfigProvider {
     Public AwsIotCoreConfigProvider() = default;
     Public Virtual ~AwsIotCoreConfigProvider() override = default;
 
