@@ -59,8 +59,8 @@ class EspidfMqttClient final : public IMqttClient {
             msg.payload = StdString(event->data, event->data_len);
             StdString topicx = StdString(event->topic, event->topic_len);
 
-            server->bufferedMessages[topicx].push_back(msg);
-            server->logger->Info(Tag::Untagged,
+            client->bufferedMessages[topicx].push_back(msg);
+            client->logger->Info(Tag::Untagged,
                 "Buffered message GUID=" + msg.guid +
                 " topic=" + topicx +
                 " payload=" + msg.payload);
