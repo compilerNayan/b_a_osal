@@ -2,6 +2,8 @@
 #ifndef ESPIDF_LOGSINK_H
 #define ESPIDF_LOGSINK_H
 
+#include "esp_timer.h" 
+
 #include <StandardDefines.h>
 #include "../../02-interface/02-ILogSink.h"
 //#include "../../02-interface/02-ILogBuffer.h"
@@ -33,13 +35,14 @@ class EspidfLogSink final : public ILogSink {
         printf(timeBuf);
         printf("] ");
         printf(message.c_str());
+        printf("\n");
 
         static ULong seqPerSec = 0;
         ULongLong key;
         if (timeValid) {
             key = (ULongLong)nowSec * 1000ULL + (ULong)(seqPerSec++ % 1000);
         } else {
-            key = (ULongLong)millis() * 1000ULL + (ULong)(seqPerSec++ % 1000);
+            key = (ULongLong)esp_timer_get_time() * 1000ULL + (ULong)(seqPerSec++ % 1000);
         }
         //logBuffer->AddLog(key, message);
     }
