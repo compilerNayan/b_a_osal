@@ -164,20 +164,20 @@ class EspidfMqttClient final : public IMqttClient {
     Public Optional<MqttMessage> ReceiveMessage(CStdString& topic) override {
         if (!running) return std::nullopt;
 
-        if (bufferedMessages.find(receiveTopic.value()) == bufferedMessages.end()) {
-            esp_mqtt_client_subscribe(client, receiveTopic.value().c_str(), 1);
-            logger->Info(Tag::Untagged, "Subscribed to new topic=" + receiveTopic.value());
+        if (bufferedMessages.find(topic) == bufferedMessages.end()) {
+            esp_mqtt_client_subscribe(client, topic.c_str(), 1);
+            logger->Info(Tag::Untagged, "Subscribed to new topic=" + topic);
             return std::nullopt;
         }
 
-        auto& queue = bufferedMessages[receiveTopic.value()];
+        auto& queue = bufferedMessages[topic];
         if (queue.empty()) return std::nullopt;
 
         auto msg = queue.front();
         queue.pop_front();
         logger->Info(Tag::Untagged,
             "Delivering GUID=" + msg.guid +
-            " topic=" + receiveTopic.value() +
+            " topic=" + topic +
             " payload=" + msg.payload);
         return msg;
     }
