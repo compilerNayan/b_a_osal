@@ -7,9 +7,10 @@
 #include <optional>
 #include <deque>
 #include <unordered_map>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 #include <StandardDefines.h>
-
 
 #include "logger/ILogger.h"
 #include "util/GuidUtil.h"
@@ -152,7 +153,8 @@ class EspidfMqttClient final : public IMqttClient {
                     "MQTT connection established after " + std::to_string(waited) + "ms");
                 return true;
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds(intervalMs));
+            // FreeRTOS delay instead of std::this_thread::sleep_for
+            vTaskDelay(pdMS_TO_TICKS(intervalMs));
             waited += intervalMs;
         }
     
@@ -160,7 +162,7 @@ class EspidfMqttClient final : public IMqttClient {
             "MQTT connection not established within timeout=" + std::to_string(timeoutMs) + "ms");
         return false;
     }
-    
+        
     Public Optional<MqttMessage> ReceiveMessage(CStdString& topic) override {
         if (!running) return std::nullopt;
 
