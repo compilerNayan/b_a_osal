@@ -122,7 +122,7 @@ class EspidfTcpServer final : public ITcpServer {
         }
         buffer[len] = '\0';
     
-        IoTMessage msg;
+        MqttMessage msg;
         msg.guid = GuidUtil::GenerateGuid();
         msg.payload = StdString(buffer);
     
