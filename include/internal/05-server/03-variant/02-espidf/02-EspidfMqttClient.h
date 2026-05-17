@@ -49,7 +49,7 @@ class EspidfMqttClient final : public IMqttClient {
                                          esp_event_base_t base,
                                          Int32 event_id,
                                          Void* event_data) {
-        EspidfAwsIotCoreServer* server = static_cast<EspidfAwsIotCoreServer*>(handler_args);
+        EspidfMqttClient* client = static_cast<EspidfMqttClient*>(handler_args);
         esp_mqtt_event_handle_t event = (esp_mqtt_event_handle_t)event_data;
 
         if (event->event_id == MQTT_EVENT_DATA) {

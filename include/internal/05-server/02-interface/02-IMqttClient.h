@@ -11,7 +11,7 @@ class IMqttClient {
     Public Virtual Bool Connect() = 0;
     Public Virtual Bool Disconnect() = 0;
     Public Virtual Bool IsConnected() const = 0;
-    Public Virtual Bool RefreshConnection() const = 0;
+    Public Virtual Bool RefreshConnection() = 0;
     Public Virtual Bool WaitForConnection(Int timeoutMs) = 0;
 
     Public Virtual Optional<MqttMessage> ReceiveMessage(CStdString& topic) = 0;
