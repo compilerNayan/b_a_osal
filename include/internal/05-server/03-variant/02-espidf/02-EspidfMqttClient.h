@@ -205,17 +205,6 @@ class EspidfMqttClient final : public IMqttClient {
         }
     }
 
-    // New design: ReceiveMessage pulls all subscribed topics
-    Public Virtual Void ReceiveMessage() override {
-        if (!running) return;
-        std::lock_guard<std::mutex> lock(subscriptionMutex_);
-        for (const auto& topic : subscribedTopics_) {
-            // Messages are buffered via event handler, so nothing to do here
-            // This method just iterates through subscribed topics to simulate pulling
-            logger->Info(Tag::Untagged, "Checked subscribed topic=" + topic);
-        }
-    }
-
     // SendMessage drains one from send buffer if available
     Public Virtual Void SendMessage() override {
         if (!running || !client) return;

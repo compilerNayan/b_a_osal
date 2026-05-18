@@ -23,7 +23,6 @@ class MqttClientThread final : public IRunnable {
         logger_->Info(Tag::Untagged, "MqttClientThread started");
         mqttClient_->RefreshConnection();
         while (mqttClient_ && mqttClient_->IsConnected()) {
-            mqttClient_->ReceiveMessage();
             mqttClient_->SendMessage();
             Thread::Sleep(400); // sleep 400 ms
         }

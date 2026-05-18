@@ -23,7 +23,6 @@ class IMqttClient {
     Public Virtual Void UnsubscribeAll() = 0;
 
     // Core I/O loops (non-returning, just buffer internally)
-    Public Virtual Void ReceiveMessage() = 0;   // pulls from broker, stores in internal receive buffer
     Public Virtual Void SendMessage() = 0;                       // checks internal send buffer, sends one if available
 
     // Application-facing buffer access
