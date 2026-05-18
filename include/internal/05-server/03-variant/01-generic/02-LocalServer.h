@@ -2,12 +2,12 @@
 #define LOCALSERVER_INTERNAL_H
 
 #include <StandardDefines.h>
-#include "communication/IServer.h"
+#include "communication/ILocalServer.h"
 #include "internal/05-server/02-interface/01-ITcpServer.h"
 
 
 /* @Component */
-class LocalServer final : public IServer {
+class LocalServer final : public ILocalServer {
     Public LocalServer() = default;
     Public Virtual ~LocalServer() override = default;
 

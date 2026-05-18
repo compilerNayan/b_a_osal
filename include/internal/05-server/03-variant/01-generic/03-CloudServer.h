@@ -2,12 +2,12 @@
 #define CLOUDSERVER_INTERNAL_H
 
 #include <StandardDefines.h>
-#include "communication/IServer.h"
+#include "communication/ICloudServer.h"
 #include "internal/05-server/02-interface/02-MqttServer.h"
 
 
 /* @Component */
-class CloudServer final : public IServer {
+class CloudServer final : public ICloudServer {
     Public CloudServer() = default;
     Public Virtual ~CloudServer() override = default;
 
