@@ -12,7 +12,7 @@ class CloudServer final : public ICloudServer {
     Public Virtual ~CloudServer() override = default;
 
     /* @Autowired */
-    Private IMqttClientrPtr mqttClient;
+    Private IMqttClientPtr mqttClient;
 
     Public Bool Start() override {
         return mqttClient->Connect();
