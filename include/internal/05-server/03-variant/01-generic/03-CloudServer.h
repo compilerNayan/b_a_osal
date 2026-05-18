@@ -31,7 +31,7 @@ class CloudServer final : public ICloudServer {
     }
     
     Public IHttpRequestPtr ReceiveMessage() override {
-        CStdString path = "/nknk32/sub";
+        CStdString path = "nknk32/sub";
         auto message = mqttClient->ReceiveMessage(path);
         if (!message.has_value()) {
             return nullptr;
@@ -41,7 +41,7 @@ class CloudServer final : public ICloudServer {
     }
 
     Public Bool SendMessage(CStdString& requestId, CStdString& message) override {
-        CStdString path = "/nknk32/pub";
+        CStdString path = "nknk32/pub";
         MqttMessage mqttMessage = {
             .guid = requestId,
             .payload = message,
