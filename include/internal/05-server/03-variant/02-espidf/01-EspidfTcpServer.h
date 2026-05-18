@@ -30,6 +30,8 @@ class EspidfTcpServer final : public ITcpServer {
         }
     };
 
+    Private Cache<StdString, std::shared_ptr<SocketEntry>> socketCache_{180000}; // 3 min TTL
+
     Private Int serverSock_;
     Private Bool running_;
     Private UInt port_;
@@ -129,7 +131,7 @@ class EspidfTcpServer final : public ITcpServer {
             return;
         }
 
-        // Set client socket non-blocking too
+        // Set client socket non-blocking
         int flags = fcntl(clientSock, F_GETFL, 0);
         fcntl(clientSock, F_SETFL, flags | O_NONBLOCK);
 
@@ -151,6 +153,9 @@ class EspidfTcpServer final : public ITcpServer {
             receiveBuffer_.push_back(msg);
         }
 
+        // Cache the socket by GUID
+        socketCache_.Put(msg.guid, std::make_shared<SocketEntry>(SocketEntry{clientSock}));
+
         receivedMessageCount_++;
         logger->Info(Tag::Untagged, "Message buffered, GUID=" + msg.guid);
     }
@@ -167,19 +172,25 @@ class EspidfTcpServer final : public ITcpServer {
             sendBuffer_.pop_front();
         }
 
-        // For simplicity, assume one active client socket per message
-        // In real design, you'd track sockets per client
-        // Here we just try to send to the last accepted socket
-        Int clientSock = serverSock_; // placeholder, adapt as needed
+        // Lookup socket by GUID
+        auto sockOpt = socketCache_.Get(msg.guid);
+        if (!sockOpt.has_value()) {
+            logger->Error(Tag::Untagged, "Send failed: GUID expired or not found (" + msg.guid + ")");
+            return;
+        }
+
+        Int clientSock = sockOpt.value()->sock;
         Int sent = send(clientSock, msg.payload.c_str(), msg.payload.size(), 0);
 
         if (sent <= 0) {
             logger->Warning(Tag::Untagged, "Send failed or would block, GUID=" + msg.guid);
+            socketCache_.Remove(msg.guid); // cleanup
             return;
         }
 
         sentMessageCount_++;
         logger->Info(Tag::Untagged, "Message sent successfully, GUID=" + msg.guid);
+        socketCache_.Remove(msg.guid); // cleanup after send
     }
 
     // Application-facing buffer access
