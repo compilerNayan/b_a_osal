@@ -20,14 +20,19 @@ class TcpServerThread final : public IRunnable {
 
     // IRunnable implementation
     Public Virtual Void Run() override {
-        logger_->Info(Tag::Untagged, "TcpServerThread started");
-        tcpServer_->Restart();
-        while (tcpServer_ && tcpServer_->IsRunning()) {
-            tcpServer_->ReceiveMessage();
-            tcpServer_->SendMessage();
-            Thread::Sleep(400); // sleep 400 ms
+        while(!tcpServer_->IsRunning()) {
+            tcpServer_->Restart();
+            if(tcpServer_->IsRunning()) {
+                logger_->Info(Tag::Untagged, "TcpServerThread started");
+                while (tcpServer_->IsRunning()) {
+                    tcpServer_->ReceiveMessage();
+                    tcpServer_->SendMessage();
+                }
+            } else {
+                logger_->Error(Tag::Untagged, "TcpServerThread failed to start");
+            }
+            Thread::Sleep(2000);
         }
-        logger_->Info(Tag::Untagged, "TcpServerThread stopped");
     }
 };
 

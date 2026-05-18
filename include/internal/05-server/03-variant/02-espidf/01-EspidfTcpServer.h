@@ -15,6 +15,7 @@
 
 #include <StandardDefines.h>
 #include "util/GuidUtil.h"
+#include "util/Cache.h"
 #include "logger/ILogger.h"
 
 #include "../../02-interface/01-ITcpServer.h"
@@ -154,7 +155,7 @@ class EspidfTcpServer final : public ITcpServer {
         }
 
         // Cache the socket by GUID
-        socketCache_.Put(msg.guid, std::make_shared<SocketEntry>(SocketEntry{clientSock}));
+        socketCache_.Put(msg.guid, std::make_shared<SocketEntry>(clientSock));
 
         receivedMessageCount_++;
         logger->Info(Tag::Untagged, "Message buffered, GUID=" + msg.guid);

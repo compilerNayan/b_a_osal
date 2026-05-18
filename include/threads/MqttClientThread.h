@@ -20,14 +20,20 @@ class MqttClientThread final : public IRunnable {
 
     // IRunnable implementation
     Public Virtual Void Run() override {
-        logger_->Info(Tag::Untagged, "MqttClientThread started");
-        mqttClient_->RefreshConnection();
-        while (mqttClient_ && mqttClient_->IsConnected()) {
-            mqttClient_->SendMessage();
-            mqttClient_->ReceiveMessage();
-            Thread::Sleep(400); // sleep 400 ms
+        while(!mqttClient_->IsConnected()) {
+            mqttClient_->RefreshConnection();
+            if(mqttClient_->WaitForConnection(10000)) {
+                logger_->Info(Tag::Untagged, "MqttClientThread started");
+                mqttClient_->Subscribe("nknk32/sub");
+                while (mqttClient_ && mqttClient_->IsConnected()) {
+                    mqttClient_->SendMessage();
+                    mqttClient_->ReceiveMessage();
+                }
+            } else {
+                logger_->Error(Tag::Untagged, "MqttClientThread failed to connect");
+            }
+            Thread::Sleep(2000);
         }
-        logger_->Info(Tag::Untagged, "MqttClientThread stopped");
     }
 };
 

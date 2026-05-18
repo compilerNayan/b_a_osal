@@ -15,8 +15,12 @@ class CloudServer final : public ICloudServer {
     Private IMqttClientPtr mqttClient;
 
     Public Bool Start() override {
-        mqttClient->Subscribe("nknk32/sub");
-        return mqttClient->Connect();
+        mqttClient->Connect();
+        if(mqttClient->WaitForConnection(10000)) {
+            mqttClient->Subscribe("nknk32/sub");
+            return true;
+        }
+        return false;
     }
 
     Public Void Stop() override {
