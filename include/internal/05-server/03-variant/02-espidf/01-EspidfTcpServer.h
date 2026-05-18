@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <esp_timer.h>
 #include <esp_system.h>
+#include <fcntl.h>   // for fcntl()
 
 #include <StandardDefines.h>
 #include "util/Cache.h"  
@@ -61,6 +62,10 @@ class EspidfTcpServer final : public ITcpServer {
             return false;
         }
     
+        // Set server socket non-blocking
+        int flags = fcntl(serverSock_, F_GETFL, 0);
+        fcntl(serverSock_, F_SETFL, flags | O_NONBLOCK);
+    
         sockaddr_in serverAddr{};
         serverAddr.sin_family = AF_INET;
         serverAddr.sin_port = htons(port_);
@@ -109,24 +114,42 @@ class EspidfTcpServer final : public ITcpServer {
         socklen_t addrLen = sizeof(clientAddr);
         Int clientSock = accept(serverSock_, (struct sockaddr*)&clientAddr, &addrLen);
         if (clientSock < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                // No pending connection
+                return std::nullopt;
+            }
             logger->Error(Tag::Untagged, "Accept failed");
             return std::nullopt;
         }
     
+        // Set client socket non-blocking too
+        int flags = fcntl(clientSock, F_GETFL, 0);
+        fcntl(clientSock, F_SETFL, flags | O_NONBLOCK);
+    
         char buffer[1024];
         Int len = recv(clientSock, buffer, sizeof(buffer)-1, 0);
-        if (len <= 0) {
+        if (len < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                // No data yet
+                close(clientSock);
+                return std::nullopt;
+            }
             logger->Error(Tag::Untagged, "Receive failed");
             close(clientSock);
             return std::nullopt;
         }
+        if (len == 0) {
+            // Connection closed
+            close(clientSock);
+            return std::nullopt;
+        }
+    
         buffer[len] = '\0';
     
         MqttMessage msg;
         msg.guid = GuidUtil::GenerateGuid();
         msg.payload = StdString(buffer);
     
-        // Store socket in cache with TTL
         socketCache_.Put(msg.guid, std::make_shared<SocketEntry>(clientSock));
     
         receivedMessageCount_++;
@@ -146,16 +169,30 @@ class EspidfTcpServer final : public ITcpServer {
         Int clientSock = sockOpt.value()->sock;
         Int sent = send(clientSock, msg.payload.c_str(), msg.payload.size(), 0);
     
-        // Remove from cache → destructor closes socket
-        socketCache_.Remove(msg.guid);
-    
-        if (sent <= 0) {
-            logger->Error(Tag::Untagged, "Send failed for GUID=" + msg.guid);
+        if (sent < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                // Socket not ready → non-blocking fail fast
+                logger->Warning(Tag::Untagged, "Send would block for GUID=" + msg.guid);
+            } else {
+                logger->Error(Tag::Untagged, "Send failed for GUID=" + msg.guid + " errno=" + std::to_string(errno));
+            }
+            // Remove from cache → destructor closes socket
+            socketCache_.Remove(msg.guid);
             return false;
         }
     
+        if (sent == 0) {
+            // Connection closed by peer
+            logger->Warning(Tag::Untagged, "Client closed connection before send, GUID=" + msg.guid);
+            socketCache_.Remove(msg.guid);
+            return false;
+        }
+    
+        // Success
         sentMessageCount_++;
         logger->Info(Tag::Untagged, "Message sent successfully, GUID=" + msg.guid);
+        // Remove from cache → destructor closes socket
+        socketCache_.Remove(msg.guid);
         return true;
     }
 };
