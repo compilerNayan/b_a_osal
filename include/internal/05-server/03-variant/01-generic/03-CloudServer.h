@@ -3,7 +3,7 @@
 
 #include <StandardDefines.h>
 #include "communication/ICloudServer.h"
-#include "internal/05-server/02-interface/02-MqttServer.h"
+#include "internal/05-server/02-interface/02-IMqttClient.h"
 
 
 /* @Component */
@@ -12,28 +12,28 @@ class CloudServer final : public ICloudServer {
     Public Virtual ~CloudServer() override = default;
 
     /* @Autowired */
-    Private IMqttServerPtr mqttServer;
+    Private IMqttClientrPtr mqttClient;
 
     Public Bool Start() override {
-        return mqttServer->Connect();
+        return mqttClient->Connect();
     }
 
     Public Void Stop() override {
-        mqttServer->Disconnect();
+        mqttClient->Disconnect();
     }
 
     Public Bool Restart() override {
-        return mqttServer->RefreshConnection();
+        return mqttClient->RefreshConnection();
     }
     
     Public Bool IsRunning() const override {
-        return mqttServer->IsConnected();
+        return mqttClient->IsConnected();
     }
     
     Public IHttpRequestPtr ReceiveMessage() override {
         CStdString path = "/nknk32/sub";
-        auto message = mqttServer->ReceiveMessage(path);
-        if (message.empty()) {
+        auto message = mqttClient->ReceiveMessage(path);
+        if (!message.has_value()) {
             return nullptr;
         }
         auto request = IHttpRequest::GetRequest(message.value().guid, message.value().payload);
@@ -46,7 +46,7 @@ class CloudServer final : public ICloudServer {
             .guid = requestId,
             .payload = message,
         };
-        return mqttServer->SendMessage(path, mqttMessage);
+        return mqttClient->SendMessage(path, mqttMessage);
     }
 };
 #endif // CLOUDSERVER_INTERNAL_H

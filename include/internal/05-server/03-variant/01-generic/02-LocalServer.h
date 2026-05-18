@@ -32,10 +32,11 @@ class LocalServer final : public ILocalServer {
     
     Public IHttpRequestPtr ReceiveMessage() override {
         auto message = tcpServer->ReceiveMessage();
-        if (message.empty()) {
+        if (!message.has_value()) {
             return nullptr;
         }
         auto request = IHttpRequest::GetRequest(message.value().guid, message.value().payload);
+        return request;
     }
 
     Public Bool SendMessage(CStdString& requestId, CStdString& message) override {
