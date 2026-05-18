@@ -24,7 +24,7 @@ class IMqttClient {
 
     // Application-facing buffer access
     Public Virtual Optional<MqttMessage> GetNextReceivedMessage(CStdString& topic) = 0; // pop from receive buffer
-    Public Virtual Void QueueMessageToSend(CStdString& topic, const MqttMessage& msg) = 0; // push into send buffer
+    Public Virtual Bool QueueMessageToSend(CStdString& topic, const MqttMessage& msg) = 0; // push into send buffer
 
     // Optional monitoring helpers
     Public Virtual Size GetPendingReceivedCount(CStdString& topic) const = 0;

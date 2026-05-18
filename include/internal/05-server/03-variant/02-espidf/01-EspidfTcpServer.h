@@ -203,9 +203,10 @@ class EspidfTcpServer final : public ITcpServer {
         return msg;
     }
 
-    Public Virtual Void QueueMessageToSend(const MqttMessage& msg) override {
+    Public Virtual Bool QueueMessageToSend(const MqttMessage& msg) override {
         std::lock_guard<std::mutex> lock(sendMutex_);
         sendBuffer_.push_back(msg);
+        return true;
     }
 
     Public Virtual Size GetPendingReceivedCount() const override {

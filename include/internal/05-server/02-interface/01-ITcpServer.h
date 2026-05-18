@@ -20,7 +20,7 @@ class ITcpServer {
 
     // Application-facing buffer access
     Public Virtual Optional<MqttMessage> GetNextReceivedMessage() = 0; // pop from receive list
-    Public Virtual Void QueueMessageToSend(const MqttMessage& msg) = 0; // push into send list
+    Public Virtual Bool QueueMessageToSend(const MqttMessage& msg) = 0; // push into send list
 
     // Optional monitoring helpers
     Public Virtual Size GetPendingReceivedCount() const = 0;

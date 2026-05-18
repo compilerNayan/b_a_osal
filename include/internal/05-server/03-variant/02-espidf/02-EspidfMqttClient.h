@@ -252,9 +252,10 @@ class EspidfMqttClient final : public IMqttClient {
         return msg;
     }
 
-    Public Virtual Void QueueMessageToSend(CStdString& topic, const MqttMessage& msg) override {
+    Public Virtual Bool QueueMessageToSend(CStdString& topic, const MqttMessage& msg) override {
         std::lock_guard<std::mutex> lock(sendMutex_);
         sendBuffer_.push_back({topic, msg});
+        return true;
     }
 
     Public Virtual Size GetPendingReceivedCount(CStdString& topic) const override {
