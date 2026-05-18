@@ -7,6 +7,7 @@
 #include <optional>
 #include <deque>
 #include <unordered_map>
+#include <unordered_set>
 #include <mutex>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -41,9 +42,13 @@ class EspidfMqttClient final : public IMqttClient {
     Private StdUnorderedMap<StdString, StdDeque<MqttMessage>> receiveBuffer_;
     Private StdDeque<std::pair<StdString, MqttMessage>> sendBuffer_;
 
+    // Subscriptions
+    Private StdUnorderedSet<StdString> subscribedTopics_;
+
     // Mutexes for coarse-grained locking
     Private mutable std::mutex receiveMutex_;
     Private mutable std::mutex sendMutex_;
+    Private mutable std::mutex subscriptionMutex_;
 
     Private Static StdString BuildMqttUri(CStdString& endpoint) {
         if (endpoint.find("://") != StdString::npos) {
@@ -165,20 +170,47 @@ class EspidfMqttClient final : public IMqttClient {
         return false;
     }
 
-    // New design: ReceiveMessage just ensures subscription
-    Public Virtual Void ReceiveMessage(CStdString& topic) override {
+    // Subscribe to a topic
+    Public Virtual Void Subscribe(CStdString& topic) override {
         if (!running) return;
         {
-            std::lock_guard<std::mutex> lock(receiveMutex_);
-            if (receiveBuffer_.find(topic) == receiveBuffer_.end()) {
+            std::lock_guard<std::mutex> lock(subscriptionMutex_);
+            if (subscribedTopics_.find(topic) == subscribedTopics_.end()) {
                 esp_mqtt_client_subscribe(client, topic.c_str(), 1);
-                logger->Info(Tag::Untagged, "Subscribed to new topic=" + topic);
+                subscribedTopics_.insert(topic);
+                logger->Info(Tag::Untagged, "Subscribed to topic=" + topic);
             }
         }
-        // Messages are buffered via event handler
     }
 
-    // New design: SendMessage drains one from send buffer if available
+    // Unsubscribe from a topic
+    Public Virtual Void Unsubscribe(CStdString& topic) override {
+        if (!running || !client) return;
+        {
+            std::lock_guard<std::mutex> lock(subscriptionMutex_);
+            auto it = subscribedTopics_.find(topic);
+            if (it != subscribedTopics_.end()) {
+                esp_mqtt_client_unsubscribe(client, topic.c_str());
+                subscribedTopics_.erase(it);
+                logger->Info(Tag::Untagged, "Unsubscribed from topic=" + topic);
+            } else {
+                logger->Warning(Tag::Untagged, "Unsubscribe called for non-subscribed topic=" + topic);
+            }
+        }
+    }
+
+    // New design: ReceiveMessage pulls all subscribed topics
+    Public Virtual Void ReceiveMessage() override {
+        if (!running) return;
+        std::lock_guard<std::mutex> lock(subscriptionMutex_);
+        for (const auto& topic : subscribedTopics_) {
+            // Messages are buffered via event handler, so nothing to do here
+            // This method just iterates through subscribed topics to simulate pulling
+            logger->Info(Tag::Untagged, "Checked subscribed topic=" + topic);
+        }
+    }
+
+    // SendMessage drains one from send buffer if available
     Public Virtual Void SendMessage() override {
         if (!running || !client) return;
         std::pair<StdString, MqttMessage> entry;
