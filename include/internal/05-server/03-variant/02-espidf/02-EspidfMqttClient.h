@@ -42,9 +42,6 @@ class EspidfMqttClient final : public IMqttClient {
     Private StdUnorderedMap<StdString, StdDeque<MqttMessage>> receiveBuffer_;
     Private StdDeque<std::pair<StdString, MqttMessage>> sendBuffer_;
 
-    // Subscriptions
-    Private StdUnorderedSet<StdString> subscribedTopics_;
-
     // Mutexes for coarse-grained locking
     Private mutable std::mutex receiveMutex_;
     Private mutable std::mutex sendMutex_;
@@ -65,12 +62,13 @@ class EspidfMqttClient final : public IMqttClient {
         esp_mqtt_event_handle_t event = (esp_mqtt_event_handle_t)event_data;
 
         switch (event->event_id) {
+            case MQTT_EVENT_CONNECTED: {
+                client->logger->Info(Tag::Untagged, "MQTT connection established");
+                client->running = true;
+                break;
+            }
             case MQTT_EVENT_SUBSCRIBED: {
                 StdString topic(event->topic, event->topic_len);
-                {
-                    std::lock_guard<std::mutex> lock(client->subscriptionMutex_);
-                    client->subscribedTopics_.erase(topic);
-                }
                 client->logger->Info(Tag::Untagged,
                     "Broker acknowledged subscription to topic=" + topic +
                     " msg_id=" + std::to_string(event->msg_id));
@@ -188,10 +186,18 @@ class EspidfMqttClient final : public IMqttClient {
         return false;
     }
 
-    Public Virtual Void Subscribe(CStdString& topic) override {
-        std::lock_guard<std::mutex> lock(subscriptionMutex_);
-        subscribedTopics_.insert(topic);
-        logger->Info(Tag::Untagged, "Queued subscription for topic=" + topic);
+    Public Virtual Bool Subscribe(CStdString& topic) override {
+        Int id = esp_mqtt_client_subscribe(client, topic.c_str(), 1);
+        if (id != -1) {
+            logger->Info(Tag::Untagged,
+                "Sent SUBSCRIBE packet for topic=" + topic +
+                " msg_id=" + std::to_string(id));
+            return true;
+        } else {
+            logger->Warning(Tag::Untagged,
+                "Failed to send SUBSCRIBE for topic=" + topic);
+            return false;
+        }
     }
 
     // SendMessage drains one from send buffer if available
@@ -221,23 +227,6 @@ class EspidfMqttClient final : public IMqttClient {
             logger->Info(Tag::Untagged,
                 "Published GUID=" + msg.guid + " topic=" + topic +
                 " payload=" + msg.payload);
-        }
-    }
-
-    Public Virtual Void ReceiveMessage() override {
-        if (!running || !client) return;
-    
-        std::lock_guard<std::mutex> lock(subscriptionMutex_);
-        for (const auto& topic : subscribedTopics_) {
-            Int id = esp_mqtt_client_subscribe(client, topic.c_str(), 1);
-            if (id != -1) {
-                logger->Info(Tag::Untagged,
-                    "Sent SUBSCRIBE packet for topic=" + topic +
-                    " msg_id=" + std::to_string(id));
-            } else {
-                logger->Warning(Tag::Untagged,
-                    "Failed to send SUBSCRIBE for topic=" + topic);
-            }
         }
     }
 
