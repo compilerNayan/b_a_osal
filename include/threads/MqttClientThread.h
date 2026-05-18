@@ -28,6 +28,7 @@ class MqttClientThread final : public IRunnable {
                 while (mqttClient_ && mqttClient_->IsConnected()) {
                     mqttClient_->SendMessage();
                     mqttClient_->ReceiveMessage();
+                    Thread::Sleep(100); // sleep 100 ms
                 }
             } else {
                 logger_->Error(Tag::Untagged, "MqttClientThread failed to connect");

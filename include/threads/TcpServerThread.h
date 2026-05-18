@@ -27,6 +27,7 @@ class TcpServerThread final : public IRunnable {
                 while (tcpServer_->IsRunning()) {
                     tcpServer_->ReceiveMessage();
                     tcpServer_->SendMessage();
+                    Thread::Sleep(100); // sleep 100 ms
                 }
             } else {
                 logger_->Error(Tag::Untagged, "TcpServerThread failed to start");
