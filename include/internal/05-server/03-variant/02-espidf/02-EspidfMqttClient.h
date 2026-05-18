@@ -7,6 +7,7 @@
 #include <optional>
 #include <deque>
 #include <unordered_map>
+#include <mutex>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
@@ -23,21 +24,26 @@ class EspidfMqttClient final : public IMqttClient {
 
     /* @Autowired */
     Private IAwsIotCoreConfigProviderPtr configProvider;
-
     /* @Autowired */
     Private ILoggerPtr logger;
 
     Private esp_mqtt_client_handle_t client;
     Private Bool running;
 
-    // Keep broker config strings alive for the MQTT client lifetime
+    // Broker config strings
     Private StdString brokerUri;
     Private StdString clientId;
     Private StdString caCert;
     Private StdString deviceCert;
     Private StdString privateKey;
 
-    Private StdUnorderedMap<StdString, StdDeque<MqttMessage>> bufferedMessages;
+    // Buffers
+    Private StdUnorderedMap<StdString, StdDeque<MqttMessage>> receiveBuffer_;
+    Private StdDeque<std::pair<StdString, MqttMessage>> sendBuffer_;
+
+    // Mutexes for coarse-grained locking
+    Private mutable std::mutex receiveMutex_;
+    Private mutable std::mutex sendMutex_;
 
     Private Static StdString BuildMqttUri(CStdString& endpoint) {
         if (endpoint.find("://") != StdString::npos) {
@@ -59,7 +65,11 @@ class EspidfMqttClient final : public IMqttClient {
             msg.payload = StdString(event->data, event->data_len);
             StdString topicx = StdString(event->topic, event->topic_len);
 
-            client->bufferedMessages[topicx].push_back(msg);
+            {
+                std::lock_guard<std::mutex> lock(client->receiveMutex_);
+                client->receiveBuffer_[topicx].push_back(msg);
+            }
+
             client->logger->Info(Tag::Untagged,
                 "Buffered message GUID=" + msg.guid +
                 " topic=" + topicx +
@@ -77,7 +87,7 @@ class EspidfMqttClient final : public IMqttClient {
         Disconnect();
     }
 
-    Public Bool Connect() override {
+    Public Virtual Bool Connect() override {
         if (running) return true;
 
         StdString endpoint = configProvider->GetEndpoint();
@@ -96,28 +106,24 @@ class EspidfMqttClient final : public IMqttClient {
 
         client = esp_mqtt_client_init(&mqtt_cfg);
         if (!client) {
-            logger->Error(Tag::Untagged,
-                "MQTT client init failed for uri=" + brokerUri);
+            logger->Error(Tag::Untagged, "MQTT client init failed for uri=" + brokerUri);
             return false;
         }
 
-        esp_mqtt_client_register_event(client, MQTT_EVENT_ANY,
-                                       MqttEventHandler, this);
+        esp_mqtt_client_register_event(client, MQTT_EVENT_ANY, MqttEventHandler, this);
         if (esp_mqtt_client_start(client) != ESP_OK) {
-            logger->Error(Tag::Untagged,
-                "MQTT client start failed for uri=" + brokerUri);
+            logger->Error(Tag::Untagged, "MQTT client start failed for uri=" + brokerUri);
             esp_mqtt_client_destroy(client);
             client = nullptr;
             return false;
         }
 
         running = true;
-        logger->Info(Tag::Untagged,
-            "AWS IoT Core server started uri=" + brokerUri);
+        logger->Info(Tag::Untagged, "AWS IoT Core client started uri=" + brokerUri);
         return true;
     }
 
-    Public Bool Disconnect() override {
+    Public Virtual Bool Disconnect() override {
         if (!running) return false;
         if (client) {
             esp_mqtt_client_stop(client);
@@ -125,26 +131,23 @@ class EspidfMqttClient final : public IMqttClient {
             client = nullptr;
         }
         running = false;
-        logger->Info(Tag::Untagged, "AWS IoT Core server stopped");
+        logger->Info(Tag::Untagged, "AWS IoT Core client stopped");
         return true;
     }
 
-    Public Bool IsConnected() const override {
+    Public Virtual Bool IsConnected() const override {
         return running;
     }
 
-    Public Bool RefreshConnection() override {
+    Public Virtual Bool RefreshConnection() override {
         Disconnect();
         return Connect();
     }
 
     Public Virtual Bool WaitForConnection(Int timeoutMs) override {
-        if (running) {
-            // Already connected
-            return true;
-        }
+        if (running) return true;
     
-        const Int intervalMs = 100; // poll every 100ms
+        const Int intervalMs = 100;
         Int waited = 0;
     
         while (waited < timeoutMs) {
@@ -153,7 +156,6 @@ class EspidfMqttClient final : public IMqttClient {
                     "MQTT connection established after " + std::to_string(waited) + "ms");
                 return true;
             }
-            // FreeRTOS delay instead of std::this_thread::sleep_for
             vTaskDelay(pdMS_TO_TICKS(intervalMs));
             waited += intervalMs;
         }
@@ -162,33 +164,34 @@ class EspidfMqttClient final : public IMqttClient {
             "MQTT connection not established within timeout=" + std::to_string(timeoutMs) + "ms");
         return false;
     }
-        
-    Public Optional<MqttMessage> ReceiveMessage(CStdString& topic) override {
-        if (!running) return std::nullopt;
 
-        if (bufferedMessages.find(topic) == bufferedMessages.end()) {
-            esp_mqtt_client_subscribe(client, topic.c_str(), 1);
-            logger->Info(Tag::Untagged, "Subscribed to new topic=" + topic);
-            return std::nullopt;
+    // New design: ReceiveMessage just ensures subscription
+    Public Virtual Void ReceiveMessage(CStdString& topic) override {
+        if (!running) return;
+        {
+            std::lock_guard<std::mutex> lock(receiveMutex_);
+            if (receiveBuffer_.find(topic) == receiveBuffer_.end()) {
+                esp_mqtt_client_subscribe(client, topic.c_str(), 1);
+                logger->Info(Tag::Untagged, "Subscribed to new topic=" + topic);
+            }
         }
-
-        auto& queue = bufferedMessages[topic];
-        if (queue.empty()) return std::nullopt;
-
-        auto msg = queue.front();
-        queue.pop_front();
-        logger->Info(Tag::Untagged,
-            "Delivering GUID=" + msg.guid +
-            " topic=" + topic +
-            " payload=" + msg.payload);
-        return msg;
+        // Messages are buffered via event handler
     }
 
-    Public Bool SendMessage(CStdString& topic, const MqttMessage& msg) override {
-        if (!running || !client) {
-            logger->Warning(Tag::Untagged, "SendMessage called but server not running");
-            return false;
+    // New design: SendMessage drains one from send buffer if available
+    Public Virtual Void SendMessage() override {
+        if (!running || !client) return;
+        std::pair<StdString, MqttMessage> entry;
+        {
+            std::lock_guard<std::mutex> lock(sendMutex_);
+            if (sendBuffer_.empty()) return;
+            entry = sendBuffer_.front();
+            sendBuffer_.pop_front();
         }
+
+        auto& topic = entry.first;
+        auto& msg = entry.second;
+
         Int id = esp_mqtt_client_publish(client,
                                          topic.c_str(),
                                          msg.payload.c_str(),
@@ -198,14 +201,40 @@ class EspidfMqttClient final : public IMqttClient {
         if (id == -1) {
             logger->Error(Tag::Untagged,
                 "Publish failed GUID=" + msg.guid + " topic=" + topic);
-            return false;
+        } else {
+            logger->Info(Tag::Untagged,
+                "Published GUID=" + msg.guid + " topic=" + topic +
+                " payload=" + msg.payload);
         }
-        logger->Info(Tag::Untagged,
-            "Published GUID=" + msg.guid + " topic=" + topic +
-            " payload=" + msg.payload);
-        return true;
     }
 
+    // Application-facing buffer access
+    Public Virtual Optional<MqttMessage> GetNextReceivedMessage(CStdString& topic) override {
+        std::lock_guard<std::mutex> lock(receiveMutex_);
+        auto it = receiveBuffer_.find(topic);
+        if (it == receiveBuffer_.end() || it->second.empty()) return std::nullopt;
+
+        auto msg = it->second.front();
+        it->second.pop_front();
+        return msg;
+    }
+
+    Public Virtual Void QueueMessageToSend(CStdString& topic, const MqttMessage& msg) override {
+        std::lock_guard<std::mutex> lock(sendMutex_);
+        sendBuffer_.push_back({topic, msg});
+    }
+
+    Public Virtual Size GetPendingReceivedCount(CStdString& topic) const override {
+        std::lock_guard<std::mutex> lock(receiveMutex_);
+        auto it = receiveBuffer_.find(topic);
+        if (it == receiveBuffer_.end()) return 0;
+        return it->second.size();
+    }
+
+    Public Virtual Size GetPendingSendCount() const override {
+        std::lock_guard<std::mutex> lock(sendMutex_);
+        return sendBuffer_.size();
+    }
 };
 
 #endif // ESPIDF_MQTT_CLIENT_INTERNAL_H
