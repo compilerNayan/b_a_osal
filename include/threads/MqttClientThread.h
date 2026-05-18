@@ -27,7 +27,6 @@ class MqttClientThread final : public IRunnable {
                 mqttClient_->Subscribe("nknk32/sub");
                 while (mqttClient_ && mqttClient_->IsConnected()) {
                     mqttClient_->SendMessage();
-                    mqttClient_->ReceiveMessage();
                     Thread::Sleep(100); // sleep 100 ms
                 }
             } else {

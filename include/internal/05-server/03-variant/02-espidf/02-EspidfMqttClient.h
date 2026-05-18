@@ -139,7 +139,6 @@ class EspidfMqttClient final : public IMqttClient {
             return false;
         }
 
-        running = true;
         logger->Info(Tag::Untagged, "AWS IoT Core client started uri=" + brokerUri);
         return true;
     }
