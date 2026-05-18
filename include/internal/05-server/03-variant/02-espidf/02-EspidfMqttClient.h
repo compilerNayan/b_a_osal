@@ -58,27 +58,45 @@ class EspidfMqttClient final : public IMqttClient {
     }
 
     Private Static Void MqttEventHandler(Void* handler_args,
-                                         esp_event_base_t base,
-                                         Int32 event_id,
-                                         Void* event_data) {
+                                        esp_event_base_t base,
+                                        Int32 event_id,
+                                        Void* event_data) {
         EspidfMqttClient* client = static_cast<EspidfMqttClient*>(handler_args);
         esp_mqtt_event_handle_t event = (esp_mqtt_event_handle_t)event_data;
 
-        if (event->event_id == MQTT_EVENT_DATA) {
-            MqttMessage msg;
-            msg.guid = GuidUtil::GenerateGuid();
-            msg.payload = StdString(event->data, event->data_len);
-            StdString topicx = StdString(event->topic, event->topic_len);
-
-            {
-                std::lock_guard<std::mutex> lock(client->receiveMutex_);
-                client->receiveBuffer_[topicx].push_back(msg);
+        switch (event->event_id) {
+            case MQTT_EVENT_SUBSCRIBED: {
+                StdString topic(event->topic, event->topic_len);
+                {
+                    std::lock_guard<std::mutex> lock(client->subscriptionMutex_);
+                    client->subscribedTopics_.erase(topic);
+                }
+                client->logger->Info(Tag::Untagged,
+                    "Broker acknowledged subscription to topic=" + topic +
+                    " msg_id=" + std::to_string(event->msg_id));
+                break;
             }
+            case MQTT_EVENT_DATA: {
+                StdString topicx(event->topic, event->topic_len);
+                MqttMessage msg;
+                msg.guid = GuidUtil::GenerateGuid();
+                msg.payload = StdString(event->data, event->data_len);
 
-            client->logger->Info(Tag::Untagged,
-                "Buffered message GUID=" + msg.guid +
-                " topic=" + topicx +
-                " payload=" + msg.payload);
+                {
+                    std::lock_guard<std::mutex> lock(client->receiveMutex_);
+                    client->receiveBuffer_[topicx].push_back(msg);
+                }
+
+                client->logger->Info(Tag::Untagged,
+                    "Buffered message GUID=" + msg.guid +
+                    " topic=" + topicx +
+                    " payload=" + msg.payload);
+                break;
+            }
+            default:
+                client->logger->Info(Tag::Untagged,
+                    "Unhandled MQTT event_id=" + std::to_string(event->event_id));
+                break;
         }
     }
 
@@ -170,39 +188,10 @@ class EspidfMqttClient final : public IMqttClient {
         return false;
     }
 
-    // Subscribe to a topic
     Public Virtual Void Subscribe(CStdString& topic) override {
-        {
-            std::lock_guard<std::mutex> lock(subscriptionMutex_);
-            if (subscribedTopics_.find(topic) == subscribedTopics_.end()) {
-                esp_mqtt_client_subscribe(client, topic.c_str(), 1);
-                subscribedTopics_.insert(topic);
-                logger->Info(Tag::Untagged, "Subscribed to topic=" + topic);
-            }
-        }
-    }
-
-    // Unsubscribe from a topic
-    Public Virtual Void Unsubscribe(CStdString& topic) override {
-        if (!running || !client) return;
-        {
-            std::lock_guard<std::mutex> lock(subscriptionMutex_);
-            auto it = subscribedTopics_.find(topic);
-            if (it != subscribedTopics_.end()) {
-                esp_mqtt_client_unsubscribe(client, topic.c_str());
-                subscribedTopics_.erase(it);
-                logger->Info(Tag::Untagged, "Unsubscribed from topic=" + topic);
-            } else {
-                logger->Warning(Tag::Untagged, "Unsubscribe called for non-subscribed topic=" + topic);
-            }
-        }
-    }
-    Public Virtual Void UnsubscribeAll() override {
-        {
-            std::lock_guard<std::mutex> lock(subscriptionMutex_);
-            subscribedTopics_.clear();
-            logger->Info(Tag::Untagged, "Unsubscribed from all topics");
-        }
+        std::lock_guard<std::mutex> lock(subscriptionMutex_);
+        subscribedTopics_.insert(topic);
+        logger->Info(Tag::Untagged, "Queued subscription for topic=" + topic);
     }
 
     // SendMessage drains one from send buffer if available
@@ -232,6 +221,23 @@ class EspidfMqttClient final : public IMqttClient {
             logger->Info(Tag::Untagged,
                 "Published GUID=" + msg.guid + " topic=" + topic +
                 " payload=" + msg.payload);
+        }
+    }
+
+    Public Virtual Void ReceiveMessage() override {
+        if (!running || !client) return;
+    
+        std::lock_guard<std::mutex> lock(subscriptionMutex_);
+        for (const auto& topic : subscribedTopics_) {
+            Int id = esp_mqtt_client_subscribe(client, topic.c_str(), 1);
+            if (id != -1) {
+                logger->Info(Tag::Untagged,
+                    "Sent SUBSCRIBE packet for topic=" + topic +
+                    " msg_id=" + std::to_string(id));
+            } else {
+                logger->Warning(Tag::Untagged,
+                    "Failed to send SUBSCRIBE for topic=" + topic);
+            }
         }
     }
 

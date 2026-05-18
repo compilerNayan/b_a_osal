@@ -24,6 +24,7 @@ class MqttClientThread final : public IRunnable {
         mqttClient_->RefreshConnection();
         while (mqttClient_ && mqttClient_->IsConnected()) {
             mqttClient_->SendMessage();
+            mqttClient_->ReceiveMessage();
             Thread::Sleep(400); // sleep 400 ms
         }
         logger_->Info(Tag::Untagged, "MqttClientThread stopped");

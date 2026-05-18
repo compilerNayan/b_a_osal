@@ -18,12 +18,9 @@ class IMqttClient {
     // Subscribe to a topic
     Public Virtual Void Subscribe(CStdString& topic) = 0;
 
-    // Unsubscribe from a topic
-    Public Virtual Void Unsubscribe(CStdString& topic) = 0;
-    Public Virtual Void UnsubscribeAll() = 0;
-
     // Core I/O loops (non-returning, just buffer internally)
     Public Virtual Void SendMessage() = 0;                       // checks internal send buffer, sends one if available
+    Public Virtual Void ReceiveMessage() = 0;
 
     // Application-facing buffer access
     Public Virtual Optional<MqttMessage> GetNextReceivedMessage(CStdString& topic) = 0; // pop from receive buffer
