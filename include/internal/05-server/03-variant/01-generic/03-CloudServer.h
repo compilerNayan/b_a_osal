@@ -20,12 +20,10 @@ class CloudServer final : public ICloudServer {
     }
 
     Public Void Stop() override {
-        mqttClient->UnsubscribeAll();
         mqttClient->Disconnect();
     }
 
     Public Bool Restart() override {
-        mqttClient->UnsubscribeAll();
         mqttClient->Subscribe("nknk32/sub");
         return mqttClient->RefreshConnection();
     }
