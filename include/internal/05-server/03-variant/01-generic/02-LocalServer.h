@@ -31,7 +31,7 @@ class LocalServer final : public ILocalServer {
     }
     
     Public IHttpRequestPtr ReceiveMessage() override {
-        auto message = tcpServer->ReceiveMessage();
+        auto message = tcpServer->GetNextReceivedMessage();
         if (!message.has_value()) {
             return nullptr;
         }
@@ -44,7 +44,7 @@ class LocalServer final : public ILocalServer {
             .guid = requestId,
             .payload = message,
         };
-        return tcpServer->SendMessage(mqttMessage);
+        return tcpServer->QueueMessageToSend(mqttMessage);
     }
 };
 

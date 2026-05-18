@@ -172,7 +172,6 @@ class EspidfMqttClient final : public IMqttClient {
 
     // Subscribe to a topic
     Public Virtual Void Subscribe(CStdString& topic) override {
-        if (!running) return;
         {
             std::lock_guard<std::mutex> lock(subscriptionMutex_);
             if (subscribedTopics_.find(topic) == subscribedTopics_.end()) {
@@ -196,6 +195,13 @@ class EspidfMqttClient final : public IMqttClient {
             } else {
                 logger->Warning(Tag::Untagged, "Unsubscribe called for non-subscribed topic=" + topic);
             }
+        }
+    }
+    Public Virtual Void UnsubscribeAll() override {
+        {
+            std::lock_guard<std::mutex> lock(subscriptionMutex_);
+            subscribedTopics_.clear();
+            logger->Info(Tag::Untagged, "Unsubscribed from all topics");
         }
     }
 

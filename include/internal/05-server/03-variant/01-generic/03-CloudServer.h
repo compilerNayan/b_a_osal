@@ -15,14 +15,18 @@ class CloudServer final : public ICloudServer {
     Private IMqttClientPtr mqttClient;
 
     Public Bool Start() override {
+        mqttClient->Subscribe("nknk32/sub");
         return mqttClient->Connect();
     }
 
     Public Void Stop() override {
+        mqttClient->UnsubscribeAll();
         mqttClient->Disconnect();
     }
 
     Public Bool Restart() override {
+        mqttClient->UnsubscribeAll();
+        mqttClient->Subscribe("nknk32/sub");
         return mqttClient->RefreshConnection();
     }
     
@@ -32,7 +36,7 @@ class CloudServer final : public ICloudServer {
     
     Public IHttpRequestPtr ReceiveMessage() override {
         CStdString path = "nknk32/sub";
-        auto message = mqttClient->ReceiveMessage(path);
+        auto message = mqttClient->GetNextReceivedMessage(path);
         if (!message.has_value()) {
             return nullptr;
         }
@@ -46,7 +50,7 @@ class CloudServer final : public ICloudServer {
             .guid = requestId,
             .payload = message,
         };
-        return mqttClient->SendMessage(path, mqttMessage);
+        return mqttClient->QueueMessageToSend(path, mqttMessage);
     }
 };
 #endif // CLOUDSERVER_INTERNAL_H

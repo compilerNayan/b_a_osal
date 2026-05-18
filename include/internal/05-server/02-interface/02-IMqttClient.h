@@ -20,6 +20,7 @@ class IMqttClient {
 
     // Unsubscribe from a topic
     Public Virtual Void Unsubscribe(CStdString& topic) = 0;
+    Public Virtual Void UnsubscribeAll() = 0;
 
     // Core I/O loops (non-returning, just buffer internally)
     Public Virtual Void ReceiveMessage() = 0;   // pulls from broker, stores in internal receive buffer
