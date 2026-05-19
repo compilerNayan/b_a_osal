@@ -5,23 +5,12 @@
 #include "esp_netif.h"
 #include "lwip/sockets.h"
 #include "lwip/netdb.h"
-#include "esp_log.h"
 
 class InternetUtil {
     
     Public Static Bool IsHostReachable(CStdString host, Int port, Int timeout_ms) {
-        // Check if any netif is up
-        esp_netif_t* netif = esp_netif_next(NULL);
-        bool any_up = false;
-        while (netif) {
-            if (esp_netif_is_netif_up(netif)) {
-                any_up = true;
-                break;
-            }
-            netif = esp_netif_next(netif);
-        }
-        if (!any_up) {
-            ESP_LOGW(TAG, "No network interface is up");
+        esp_netif_t* netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+        if (!netif || !esp_netif_is_netif_up(netif)) {
             return false;
         }
     
@@ -54,7 +43,7 @@ class InternetUtil {
         freeaddrinfo(res);
         return connected;
     }
-    
+
 };
 
 #endif // INTERNET_UTIL_H
