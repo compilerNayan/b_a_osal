@@ -104,18 +104,17 @@ class EspidfHotspotManager : public IHotspotManager {
         return true;
     }
 
-    Public Virtual Bool Stop() override {
+    Public Virtual Void Stop() override {
         esp_err_t err = esp_wifi_stop();
         if (err == ESP_ERR_WIFI_NOT_INIT || err == ESP_ERR_WIFI_NOT_STARTED) {
             logger->Warning(Tag::Untagged, "[EspidfHotspotManager] Stop called but hotspot not running");
         } else if (err != ESP_OK) {
             logger->Error(Tag::Untagged, "[EspidfHotspotManager] esp_wifi_stop failed: " + std::to_string(err));
-            return false;
+            return;
         }
         active = false;
         connectedClients = 0;
         logger->Info(Tag::Untagged, "[EspidfHotspotManager] Hotspot stopped");
-        return true;
     }
 
     Public Virtual Bool IsActive() const override {
