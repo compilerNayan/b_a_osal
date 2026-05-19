@@ -8,7 +8,7 @@ DefineStandardPointers(IWiFiManager)
 class IWiFiManager {
     Public Virtual ~IWiFiManager() = default;
 
-    Public Virtual Bool Connect(CStdString& ssid, const Optional<CStdString>& password) = 0;
+    Public Virtual Bool Connect(CStdString& ssid, const Optional<CStdString> password) = 0;
     Public Virtual Void Disconnect() = 0;
     Public Virtual Bool IsConnected() const = 0;
     Public Virtual Bool WaitForConnection(Int timeoutMs) = 0;

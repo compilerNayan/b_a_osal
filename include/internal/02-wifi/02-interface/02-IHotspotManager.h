@@ -7,7 +7,7 @@ DefineStandardPointers(IHotspotManager)
 class IHotspotManager {
     Public Virtual ~IHotspotManager() = default;
     
-    Public Virtual Bool Start(CStdString& ssid, Optional<CStdString>& password, Int maxClients = 4) = 0;
+    Public Virtual Bool Start(CStdString ssid, Optional<CStdString> password, Int maxClients = 4) = 0;
     Public Virtual Void Stop() = 0;
     Public Virtual Bool IsActive() const = 0;
     Public Virtual optional<StdString> GetIPAddress() const = 0;

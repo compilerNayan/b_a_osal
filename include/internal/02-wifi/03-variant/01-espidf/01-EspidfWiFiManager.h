@@ -60,7 +60,7 @@ class EspidfWiFiManager : public IWiFiManager {
         InitNVS();
     }
 
-    Public Virtual Bool Connect(CStdString& ssid, const Optional<CStdString>& password) override {
+    Public Virtual Bool Connect(CStdString ssid, const Optional<CStdString> password) override {
         this->ssid = ssid;
         this->password = password.has_value() ? password.value() : "";
 
