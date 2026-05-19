@@ -45,19 +45,26 @@ class EspidfWiFiManager : public IWiFiManager {
         }
     }
 
-    Private Void InitNVS() {
+    Private Bool InitNVS() {
         esp_err_t ret = nvs_flash_init();
         if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-            ESP_ERROR_CHECK(nvs_flash_erase());
+            if (nvs_flash_erase() != ESP_OK) {
+                logger->Error(Tag::Untagged, "[EspidfWiFiManager] NVS erase failed");
+                return false;
+            }
             ret = nvs_flash_init();
         }
-        ESP_ERROR_CHECK(ret);
+        if (ret != ESP_OK) {
+            logger->Error(Tag::Untagged, "[EspidfWiFiManager] NVS init failed: " + std::to_string(ret));
+            return false;
+        }
+        return true;
     }
 
     Public EspidfWiFiManager() {
         wifiEventGroup = xEventGroupCreate();
         status = WiFiConnectionStatus::Disconnected;
-        InitNVS();
+        InitNVS(); // safe now, won’t crash
     }
 
     Public Virtual Bool Connect(CStdString ssid, const Optional<CStdString> password) override {
@@ -66,40 +73,45 @@ class EspidfWiFiManager : public IWiFiManager {
 
         logger->Info(Tag::Untagged, "[EspidfWiFiManager] Starting WiFi connection to SSID: " + ssid);
 
-        ESP_ERROR_CHECK(esp_netif_init());
-        ESP_ERROR_CHECK(esp_event_loop_create_default());
-        esp_netif_create_default_wifi_sta();
+        if (esp_netif_init() != ESP_OK) return false;
+        if (esp_event_loop_create_default() != ESP_OK) return false;
+        if (!esp_netif_create_default_wifi_sta()) return false;
 
         wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-        ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-        ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
+        if (esp_wifi_init(&cfg) != ESP_OK) return false;
+        if (esp_wifi_set_storage(WIFI_STORAGE_RAM) != ESP_OK) return false;
 
-        ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
-                                                            ESP_EVENT_ANY_ID,
-                                                            &EventHandler,
-                                                            this,
-                                                            nullptr));
-        ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
-                                                            IP_EVENT_STA_GOT_IP,
-                                                            &EventHandler,
-                                                            this,
-                                                            nullptr));
+        if (esp_event_handler_instance_register(WIFI_EVENT,
+                                                ESP_EVENT_ANY_ID,
+                                                &EventHandler,
+                                                this,
+                                                nullptr) != ESP_OK) return false;
+        if (esp_event_handler_instance_register(IP_EVENT,
+                                                IP_EVENT_STA_GOT_IP,
+                                                &EventHandler,
+                                                this,
+                                                nullptr) != ESP_OK) return false;
 
         wifi_config_t wifi_config = {};
         strncpy((Char*)wifi_config.sta.ssid, ssid.c_str(), sizeof(wifi_config.sta.ssid));
         strncpy((Char*)wifi_config.sta.password, this->password.c_str(), sizeof(wifi_config.sta.password));
         wifi_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
 
-        ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-        ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
-        ESP_ERROR_CHECK(esp_wifi_start());
+        if (esp_wifi_set_mode(WIFI_MODE_STA) != ESP_OK) return false;
+        if (esp_wifi_set_config(WIFI_IF_STA, &wifi_config) != ESP_OK) return false;
+        if (esp_wifi_start() != ESP_OK) return false;
 
         status = WiFiConnectionStatus::Connecting;
         return true;
     }
 
     Public Virtual Void Disconnect() override {
-        esp_wifi_disconnect();
+        esp_err_t err = esp_wifi_disconnect();
+        if (err == ESP_ERR_WIFI_NOT_INIT || err == ESP_ERR_WIFI_NOT_STARTED) {
+            logger->Warning(Tag::Untagged, "[EspidfWiFiManager] Disconnect called but WiFi not running");
+        } else if (err != ESP_OK) {
+            logger->Error(Tag::Untagged, "[EspidfWiFiManager] esp_wifi_disconnect failed: " + std::to_string(err));
+        }
         status = WiFiConnectionStatus::Disconnected;
         logger->Info(Tag::Untagged, "[EspidfWiFiManager] Disconnected from WiFi");
     }
@@ -143,7 +155,9 @@ class EspidfWiFiManager : public IWiFiManager {
 
     Public Virtual StdString GetMACAddress() const override {
         uint8_t mac[6];
-        esp_wifi_get_mac(WIFI_IF_STA, mac);
+        if (esp_wifi_get_mac(WIFI_IF_STA, mac) != ESP_OK) {
+            return "";
+        }
         Char buf[18];
         sprintf(buf, "%02X:%02X:%02X:%02X:%02X:%02X",
                 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
@@ -163,6 +177,8 @@ class EspidfWiFiManager : public IWiFiManager {
             for (int i = 0; i < ap_count; i++) {
                 networks.push_back(StdString(reinterpret_cast<Char*>(ap_info[i].ssid)));
             }
+        } else {
+            logger->Error(Tag::Untagged, "[EspidfWiFiManager] WiFi scan failed");
         }
         return networks;
     }
