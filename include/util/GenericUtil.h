@@ -2,7 +2,7 @@
 #define GENERIC_UTIL_H
 
 #include <StandardDefines.h>
-#include "esp_system.h"  // for esp_random()
+#include "esp_random.h"
 
 class GenericUtil {
 

@@ -60,7 +60,7 @@ class EspidfHotspotManager : public IHotspotManager {
         logger = Implementation<ILogger>::type::GetInstance();
     }
 
-    Public Virtual Bool Start(CStdString ssid, Optional<CStdString> password, Int maxClients = 4) override {
+    Public Virtual Bool Start(CStdString ssid, const Optional<CStdString> password, Int maxClients = 4) override {
         this->ssid = ssid;
         this->password = password.has_value() ? password.value() : "";
 
@@ -140,7 +140,7 @@ class EspidfHotspotManager : public IHotspotManager {
         return clients;
     }
 
-    Public Virtual Bool ChangeCredentials(CStdString& ssid, CStdString& password) override {
+    Public Virtual Bool ChangeCredentials(CStdString ssid, CStdString password) override {
         Stop();
         Optional<CStdString> pwd = password.empty() ? Optional<CStdString>{} : Optional<CStdString>(password);
         return Start(ssid, pwd);

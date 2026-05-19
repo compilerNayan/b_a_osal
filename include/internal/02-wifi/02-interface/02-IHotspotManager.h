@@ -13,7 +13,7 @@ class IHotspotManager {
     Public Virtual optional<StdString> GetIPAddress() const = 0;
     Public Virtual Int GetConnectedClients() const = 0;
     Public Virtual StdVector<StdString> ListClients() const = 0;
-    Public Virtual Bool ChangeCredentials(CStdString& ssid, CStdString& password) = 0;
+    Public Virtual Bool ChangeCredentials(CStdString ssid, CStdString password) = 0;
 };
 
 #endif // IHOTSPOT_MANAGER_INTERNAL_H
