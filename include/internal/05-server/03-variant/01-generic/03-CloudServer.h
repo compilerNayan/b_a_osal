@@ -5,7 +5,6 @@
 #include "communication/ICloudServer.h"
 #include "internal/05-server/02-interface/02-IMqttClient.h"
 
-
 /* @Component */
 class CloudServer final : public ICloudServer {
     Public CloudServer() = default;
@@ -42,7 +41,7 @@ class CloudServer final : public ICloudServer {
         if (!message.has_value()) {
             return nullptr;
         }
-        auto request = IHttpRequest::GetRequest(message.value().guid, message.value().payload);
+        auto request = IHttpRequest::GetRequest(message.value().guid, RequestSource::CloudServer, message.value().payload);
         return request;
     }
 

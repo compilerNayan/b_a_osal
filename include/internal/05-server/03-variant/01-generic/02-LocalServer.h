@@ -5,7 +5,6 @@
 #include "communication/ILocalServer.h"
 #include "internal/05-server/02-interface/01-ITcpServer.h"
 
-
 /* @Component */
 class LocalServer final : public ILocalServer {
     Public LocalServer() = default;
@@ -35,7 +34,7 @@ class LocalServer final : public ILocalServer {
         if (!message.has_value()) {
             return nullptr;
         }
-        auto request = IHttpRequest::GetRequest(message.value().guid, message.value().payload);
+        auto request = IHttpRequest::GetRequest(message.value().guid, RequestSource::LocalServer, message.value().payload);
         return request;
     }
 
