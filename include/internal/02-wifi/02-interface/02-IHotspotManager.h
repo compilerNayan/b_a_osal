@@ -10,6 +10,7 @@ class IHotspotManager {
     Public Virtual Bool Start(CStdString ssid, Optional<CStdString> password, Int maxClients = 4) = 0;
     Public Virtual Void Stop() = 0;
     Public Virtual Bool IsActive() const = 0;
+    Public Virtual Bool WaitForStart(Int timeoutMs) = 0;
     Public Virtual optional<StdString> GetIPAddress() const = 0;
     Public Virtual Int GetConnectedClients() const = 0;
     Public Virtual StdVector<StdString> ListClients() const = 0;

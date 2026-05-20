@@ -121,6 +121,37 @@ class EspidfHotspotManager : public IHotspotManager {
         return active;
     }
 
+    Public Virtual Bool WaitForStart(Int timeoutMs) override {
+        // Create an event group if not already created
+        static EventGroupHandle_t hotspotEventGroup = xEventGroupCreate();
+        const int HOTSPOT_STARTED_BIT = BIT0;
+    
+        // Register a one‑time event handler that sets the bit
+        esp_event_handler_instance_register(WIFI_EVENT,
+                                            WIFI_EVENT_AP_START,
+                                            [](void* arg, esp_event_base_t base, int32_t id, void* data) {
+                                                xEventGroupSetBits(hotspotEventGroup, HOTSPOT_STARTED_BIT);
+                                            },
+                                            nullptr,
+                                            nullptr);
+    
+        // Wait for the AP start event
+        EventBits_t bits = xEventGroupWaitBits(
+            hotspotEventGroup,
+            HOTSPOT_STARTED_BIT,
+            pdFALSE,
+            pdFALSE,
+            pdMS_TO_TICKS(timeoutMs)
+        );
+    
+        if (bits & HOTSPOT_STARTED_BIT) {
+            return true;
+        } else {
+            logger->Error(Tag::Untagged, "[EspidfHotspotManager] Hotspot start timed out");
+            return false;
+        }
+    }
+    
     Public Virtual Optional<StdString> GetIPAddress() const override {
         esp_netif_t* netif = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
         esp_netif_ip_info_t ip_info;

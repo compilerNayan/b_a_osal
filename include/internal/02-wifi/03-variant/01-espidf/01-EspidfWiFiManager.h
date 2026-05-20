@@ -34,11 +34,33 @@ class EspidfWiFiManager : public IWiFiManager {
             client->status = WiFiConnectionStatus::Connecting;
             client->logger->Info(Tag::Untagged, "[EspidfWiFiManager] STA started, attempting connect...");
             esp_wifi_connect();
-        } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
+        } 
+        else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
+            wifi_event_sta_disconnected_t* disconn = (wifi_event_sta_disconnected_t*)event_data;
             client->status = WiFiConnectionStatus::Failed;
-            client->logger->Warning(Tag::Untagged, "[EspidfWiFiManager] WiFi disconnected, retrying...");
-            esp_wifi_connect();
-        } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
+
+            switch (disconn->reason) {
+                case WIFI_REASON_AUTH_FAIL:
+                case WIFI_REASON_HANDSHAKE_TIMEOUT:
+                    client->logger->Error(Tag::Untagged, "[EspidfWiFiManager] Authentication failed (wrong password?)");
+                    break;
+                case WIFI_REASON_NO_AP_FOUND:
+                    client->logger->Error(Tag::Untagged, "[EspidfWiFiManager] SSID not found");
+                    break;
+                case WIFI_REASON_ASSOC_LEAVE:
+                    client->logger->Warning(Tag::Untagged, "[EspidfWiFiManager] Disconnected by AP");
+                    break;
+                case WIFI_REASON_BEACON_TIMEOUT:
+                    client->logger->Warning(Tag::Untagged, "[EspidfWiFiManager] Beacon timeout (AP not responding)");
+                    break;
+                default:
+                    client->logger->Warning(Tag::Untagged, "[EspidfWiFiManager] Disconnected, reason=" + std::to_string(disconn->reason));
+                    break;
+            }
+
+            // Do NOT auto-retry here. Let caller decide whether to reconnect.
+        } 
+        else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
             xEventGroupSetBits(client->wifiEventGroup, WIFI_CONNECTED_BIT);
             client->status = WiFiConnectionStatus::Connected;
             client->logger->Info(Tag::Untagged, "[EspidfWiFiManager] Got IP address, WiFi connected!");
