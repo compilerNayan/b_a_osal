@@ -67,11 +67,28 @@ class EspidfMqttClient final : public IMqttClient {
                 client->running = true;
                 break;
             }
+            case MQTT_EVENT_DISCONNECTED: {
+                client->logger->Warning(Tag::Untagged, "MQTT disconnected from broker");
+                client->running = false;
+                break;
+            }
             case MQTT_EVENT_SUBSCRIBED: {
                 StdString topic(event->topic, event->topic_len);
                 client->logger->Info(Tag::Untagged,
                     "Broker acknowledged subscription to topic=" + topic +
                     " msg_id=" + std::to_string(event->msg_id));
+                break;
+            }
+            case MQTT_EVENT_UNSUBSCRIBED: {
+                StdString topic(event->topic, event->topic_len);
+                client->logger->Info(Tag::Untagged,
+                    "Broker acknowledged unsubscription from topic=" + topic +
+                    " msg_id=" + std::to_string(event->msg_id));
+                break;
+            }
+            case MQTT_EVENT_PUBLISHED: {
+                client->logger->Info(Tag::Untagged,
+                    "Publish acknowledged msg_id=" + std::to_string(event->msg_id));
                 break;
             }
             case MQTT_EVENT_DATA: {
@@ -91,10 +108,27 @@ class EspidfMqttClient final : public IMqttClient {
                     " payload=" + msg.payload);
                 break;
             }
-            default:
+            case MQTT_EVENT_ERROR: {
+                client->logger->Error(Tag::Untagged, "MQTT_EVENT_ERROR occurred");
+                if (event->error_handle) {
+                    auto err = event->error_handle;
+                    client->logger->Error(Tag::Untagged,
+                        "Error type=" + std::to_string(err->error_type) +
+                        " tls_last_err=" + std::to_string(err->esp_tls_last_err) +
+                        " tls_stack_err=" + std::to_string(err->esp_tls_stack_err) +
+                        " transport_sock_errno=" + std::to_string(err->transport_sock_errno));
+                }
+                break;
+            }
+            case MQTT_EVENT_BEFORE_CONNECT: {
+                client->logger->Info(Tag::Untagged, "MQTT_EVENT_BEFORE_CONNECT: preparing to connect");
+                break;
+            }
+            default: {
                 client->logger->Info(Tag::Untagged,
                     "Unhandled MQTT event_id=" + std::to_string(event->event_id));
                 break;
+            }
         }
     }
 
