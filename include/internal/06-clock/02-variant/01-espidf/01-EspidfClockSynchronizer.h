@@ -5,11 +5,9 @@
 #include "esp_sntp.h"
 #include <time.h>
 
-
 #include <StandardDefines.h>
 #include <logger/ILogger.h>
 #include "../../01-interface/01-IClockSynchronizer.h"
-
 
 /* @Component */
 class EspidfClockSynchronizer final : public IClockSynchronizer {
@@ -22,47 +20,75 @@ class EspidfClockSynchronizer final : public IClockSynchronizer {
     Public EspidfClockSynchronizer() : lastSyncTime(0) {}
     Public Virtual ~EspidfClockSynchronizer() override = default;
 
+    // Add a static pointer to track the active instance
+    Private Static EspidfClockSynchronizer* activeInstance;
+
     // Sync device clock with retries until timeout, but only if >1 hour since last sync
-    Public Bool SyncIfNeeded(const Char* ntpServer = "pool.ntp.org", Int timeoutMs = 10000, Int intervalMs = 2000) override {
+    Public Bool SyncIfNeeded(CStdString ntpServer = "pool.ntp.org",
+                            Int timeoutMs = 10000,
+                            Int intervalMs = 2000) override {
         time_t now;
         time(&now);
 
-        // Check if last sync was within 1 hour
+        // Skip if last sync was within 1 hour
         if (lastSyncTime != 0 && difftime(now, lastSyncTime) < 3600) {
-            logger->Info(Tag::Untagged, "Skipping sync (last sync was " + std::to_string(difftime(now, lastSyncTime)) + " seconds ago)");
-            return true; // Consider still valid
+            return true;
         }
 
-        // Configure SNTP
-        esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG(ntpServer);
-        esp_netif_sntp_init(&config);
+        // Stop SNTP if already running
+        esp_sntp_stop();
 
-        logger->Info(Tag::Untagged, "Starting SNTP sync with server: " + std::string(ntpServer));
+        // Register static callback
+        activeInstance = this;
+        esp_sntp_set_time_sync_notification_cb(&EspidfClockSynchronizer::TimeSyncCallback);
+
+        // Configure SNTP
+        esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
+        esp_sntp_setservername(0, ntpServer.c_str());
+
+        // Start SNTP
+        esp_sntp_init();
+
+        logger->Info(Tag::Untagged, "Starting SNTP sync with server: " + ntpServer);
 
         Int elapsed = 0;
         while (sntp_get_sync_status() == SNTP_SYNC_STATUS_RESET && elapsed < timeoutMs) {
-            logger->Info(Tag::Untagged, "Waiting for system time... (" + std::to_string(elapsed) + "/" + std::to_string(timeoutMs) + " ms)");
+            logger->Info(Tag::Untagged,
+                "Waiting for system time... (" + std::to_string(elapsed) + "/" + std::to_string(timeoutMs) + " ms)");
             vTaskDelay(pdMS_TO_TICKS(intervalMs));
             elapsed += intervalMs;
         }
 
         if (sntp_get_sync_status() == SNTP_SYNC_STATUS_COMPLETED) {
-            time(&now);
-            lastSyncTime = now;  // Update only on success
             struct tm timeinfo;
             localtime_r(&now, &timeinfo);
-            logger->Info(Tag::Untagged, "System time synced: " + std::string(asctime(&timeinfo)));
+            logger->Info(Tag::Untagged, "System time synced: " + StdString(asctime(&timeinfo)));
             return true;
         } else {
-            logger->Warning(Tag::Untagged, "SNTP sync failed (timeout after " + std::to_string(timeoutMs) + " ms)");
+            logger->Warning(Tag::Untagged,
+                "SNTP sync failed (timeout after " + std::to_string(timeoutMs) + " ms)");
             return false;
         }
     }
 
+    // Static callback
+    Private Static Void TimeSyncCallback(struct timeval *tv) {
+        if (activeInstance) {
+            time_t now;
+            time(&now);
+            activeInstance->lastSyncTime = now;
+            activeInstance->logger->Info(Tag::Untagged, "Time sync callback: system time updated");
+        }
+    }
+
+            
     Public time_t GetLastSyncTime() const override {
         return lastSyncTime;
     }
 };
 
+// Define static member
+inline EspidfClockSynchronizer* EspidfClockSynchronizer::activeInstance = nullptr;
 
 #endif // ESPIDF_CLOCK_SYNCHRONIZER_H
+#endif // ESP_PLATFORM
