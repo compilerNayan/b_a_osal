@@ -24,10 +24,10 @@ class EspidfClockSynchronizer final : public IClockSynchronizer {
     Public EspidfClockSynchronizer() : lastSyncTime(0), timezone("IST-5:30") {}
     Public Virtual ~EspidfClockSynchronizer() override = default;
 
-    Bool SyncIfNeeded(CStdString ntpServer,
-                      Int timeoutMs,
-                      Int intervalMs,
-                      CStdString tz) override {
+    Public Bool SyncIfNeeded(CStdString ntpServer,
+                             Int timeoutMs,
+                             Int intervalMs,
+                             CStdString tz) override {
         time_t now;
         time(&now);
 
@@ -56,14 +56,14 @@ class EspidfClockSynchronizer final : public IClockSynchronizer {
         logger->Info(Tag::Untagged, "Starting SNTP sync with server: " + ntpServer);
 
         Int elapsed = 0;
-        while (sntp_get_sync_status() == SNTP_SYNC_STATUS_RESET && elapsed < timeoutMs) {
+        while (lastSyncTime == 0 && elapsed < timeoutMs) {
             logger->Info(Tag::Untagged,
                 "Waiting for system time... (" + std::to_string(elapsed) + "/" + std::to_string(timeoutMs) + " ms)");
             vTaskDelay(pdMS_TO_TICKS(intervalMs));
             elapsed += intervalMs;
         }
 
-        if (sntp_get_sync_status() == SNTP_SYNC_STATUS_COMPLETED) {
+        if (lastSyncTime != 0) {
             time(&now);
             struct tm timeinfo;
             localtime_r(&now, &timeinfo);
@@ -80,7 +80,6 @@ class EspidfClockSynchronizer final : public IClockSynchronizer {
         return lastSyncTime;
     }
 
-    // Static callback
     Private Static Void TimeSyncCallback(struct timeval *tv) {
         if (activeInstance) {
             time_t now;
