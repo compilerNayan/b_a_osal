@@ -13,6 +13,7 @@
 class EspidfClockSynchronizer final : public IClockSynchronizer {
 
     Private time_t lastSyncTime;
+    Private StdString timezone;   // store current timezone string
 
     /* @Autowired */
     Private ILoggerPtr logger;
@@ -20,14 +21,13 @@ class EspidfClockSynchronizer final : public IClockSynchronizer {
     // Track active instance for static callback
     Private Static EspidfClockSynchronizer* activeInstance;
 
-    Public EspidfClockSynchronizer() : lastSyncTime(0) {}
+    Public EspidfClockSynchronizer() : lastSyncTime(0), timezone("IST-5:30") {}
     Public Virtual ~EspidfClockSynchronizer() override = default;
 
-    // Sync device clock with retries until timeout, but only if >1 hour since last sync
-    Bool SyncIfNeeded(CStdString ntpServer = "pool.ntp.org",
-                      Int timeoutMs = 10000,
-                      Int intervalMs = 2000,
-                      CStdString tz = "IST-5:30") override {
+    Bool SyncIfNeeded(CStdString ntpServer,
+                      Int timeoutMs,
+                      Int intervalMs,
+                      CStdString tz) override {
         time_t now;
         time(&now);
 
@@ -38,6 +38,9 @@ class EspidfClockSynchronizer final : public IClockSynchronizer {
 
         // Stop SNTP if already running
         esp_sntp_stop();
+
+        // Save timezone for callback use
+        timezone = tz;
 
         // Register static callback
         activeInstance = this;
@@ -61,14 +64,10 @@ class EspidfClockSynchronizer final : public IClockSynchronizer {
         }
 
         if (sntp_get_sync_status() == SNTP_SYNC_STATUS_COMPLETED) {
-            // ✅ Apply timezone
-            setenv("TZ", tz.c_str(), 1);
-            tzset();
-
             time(&now);
             struct tm timeinfo;
             localtime_r(&now, &timeinfo);
-            logger->Info(Tag::Untagged, "System time synced (" + tz + "): " + StdString(asctime(&timeinfo)));
+            logger->Info(Tag::Untagged, "System time synced (" + timezone + "): " + StdString(asctime(&timeinfo)));
             return true;
         } else {
             logger->Warning(Tag::Untagged,
@@ -87,7 +86,16 @@ class EspidfClockSynchronizer final : public IClockSynchronizer {
             time_t now;
             time(&now);
             activeInstance->lastSyncTime = now;
-            activeInstance->logger->Info(Tag::Untagged, "Time sync callback: system time updated");
+
+            // ✅ Apply timezone here when SNTP actually sets system time
+            setenv("TZ", activeInstance->timezone.c_str(), 1);
+            tzset();
+
+            struct tm timeinfo;
+            localtime_r(&now, &timeinfo);
+            activeInstance->logger->Info(Tag::Untagged,
+                "Time sync callback: system time updated (" + activeInstance->timezone + ") "
+                + StdString(asctime(&timeinfo)));
         }
     }
 };
