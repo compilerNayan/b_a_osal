@@ -143,23 +143,34 @@ class EspidfWiFiManager : public IWiFiManager {
     }
 
     Public Virtual Bool WaitForConnection(Int timeoutMs) override {
-        EventBits_t bits = xEventGroupWaitBits(
-            wifiEventGroup,
-            WIFI_CONNECTED_BIT,
-            pdFALSE,
-            pdFALSE,
-            pdMS_TO_TICKS(timeoutMs)
-        );
-
-        if (bits & WIFI_CONNECTED_BIT) {
-            return true;
-        } else {
-            status = WiFiConnectionStatus::Timeout;
-            logger->Error(Tag::Untagged, "[EspidfWiFiManager] Connection timed out");
-            return false;
+        Int elapsed = 0;
+        const Int intervalMs = 2000; // retry every 2 seconds
+    
+        while (elapsed < timeoutMs) {
+            EventBits_t bits = xEventGroupWaitBits(
+                wifiEventGroup,
+                WIFI_CONNECTED_BIT,
+                pdFALSE,
+                pdFALSE,
+                pdMS_TO_TICKS(intervalMs)
+            );
+    
+            if (bits & WIFI_CONNECTED_BIT) {
+                return true; // Connected
+            }
+    
+            // If not connected, retry connect
+            logger->Warning(Tag::Untagged, "[EspidfWiFiManager] Retry WiFi connect...");
+            esp_wifi_connect();
+    
+            elapsed += intervalMs;
         }
+    
+        status = WiFiConnectionStatus::Timeout;
+        logger->Error(Tag::Untagged, "[EspidfWiFiManager] Connection timed out after " + std::to_string(timeoutMs) + " ms");
+        return false;
     }
-
+    
     Public Virtual WiFiConnectionStatus GetStatus() const override {
         return status;
     }
