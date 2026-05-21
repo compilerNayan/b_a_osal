@@ -17,16 +17,17 @@ class EspidfClockSynchronizer final : public IClockSynchronizer {
     /* @Autowired */
     Private ILoggerPtr logger;
 
+    // Track active instance for static callback
+    Private Static EspidfClockSynchronizer* activeInstance;
+
     Public EspidfClockSynchronizer() : lastSyncTime(0) {}
     Public Virtual ~EspidfClockSynchronizer() override = default;
 
-    // Add a static pointer to track the active instance
-    Private Static EspidfClockSynchronizer* activeInstance;
-
     // Sync device clock with retries until timeout, but only if >1 hour since last sync
-    Public Bool SyncIfNeeded(CStdString ntpServer = "pool.ntp.org",
-                            Int timeoutMs = 10000,
-                            Int intervalMs = 2000) override {
+    Bool SyncIfNeeded(CStdString ntpServer = "pool.ntp.org",
+                      Int timeoutMs = 10000,
+                      Int intervalMs = 2000,
+                      CStdString tz = "IST-5:30") override {
         time_t now;
         time(&now);
 
@@ -60,15 +61,24 @@ class EspidfClockSynchronizer final : public IClockSynchronizer {
         }
 
         if (sntp_get_sync_status() == SNTP_SYNC_STATUS_COMPLETED) {
+            // ✅ Apply timezone
+            setenv("TZ", tz.c_str(), 1);
+            tzset();
+
+            time(&now);
             struct tm timeinfo;
             localtime_r(&now, &timeinfo);
-            logger->Info(Tag::Untagged, "System time synced: " + StdString(asctime(&timeinfo)));
+            logger->Info(Tag::Untagged, "System time synced (" + tz + "): " + StdString(asctime(&timeinfo)));
             return true;
         } else {
             logger->Warning(Tag::Untagged,
                 "SNTP sync failed (timeout after " + std::to_string(timeoutMs) + " ms)");
             return false;
         }
+    }
+
+    Public time_t GetLastSyncTime() const override {
+        return lastSyncTime;
     }
 
     // Static callback
@@ -79,11 +89,6 @@ class EspidfClockSynchronizer final : public IClockSynchronizer {
             activeInstance->lastSyncTime = now;
             activeInstance->logger->Info(Tag::Untagged, "Time sync callback: system time updated");
         }
-    }
-
-            
-    Public time_t GetLastSyncTime() const override {
-        return lastSyncTime;
     }
 };
 
