@@ -22,7 +22,7 @@ class EspidfWiFiManager : public IWiFiManager {
     Private WiFiConnectionStatus status;
 
     /* @Autowired */
-    Private ILoggerPtr logger;   
+    Private ILoggerPtr logger;
 
     Private Static Const Int WIFI_CONNECTED_BIT = BIT0;
 
@@ -38,11 +38,12 @@ class EspidfWiFiManager : public IWiFiManager {
         else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
             wifi_event_sta_disconnected_t* disconn = (wifi_event_sta_disconnected_t*)event_data;
             client->status = WiFiConnectionStatus::Failed;
+            xEventGroupClearBits(client->wifiEventGroup, WIFI_CONNECTED_BIT);
 
             switch (disconn->reason) {
                 case WIFI_REASON_AUTH_FAIL:
                 case WIFI_REASON_HANDSHAKE_TIMEOUT:
-                    client->logger->Error(Tag::Untagged, "[EspidfWiFiManager] Authentication failed (wrong password?)");
+                    client->logger->Error(Tag::Untagged, "[EspidfWiFiManager] Authentication failed");
                     break;
                 case WIFI_REASON_NO_AP_FOUND:
                     client->logger->Error(Tag::Untagged, "[EspidfWiFiManager] SSID not found");
@@ -51,19 +52,21 @@ class EspidfWiFiManager : public IWiFiManager {
                     client->logger->Warning(Tag::Untagged, "[EspidfWiFiManager] Disconnected by AP");
                     break;
                 case WIFI_REASON_BEACON_TIMEOUT:
-                    client->logger->Warning(Tag::Untagged, "[EspidfWiFiManager] Beacon timeout (AP not responding)");
+                    client->logger->Warning(Tag::Untagged, "[EspidfWiFiManager] Beacon timeout");
                     break;
                 default:
                     client->logger->Warning(Tag::Untagged, "[EspidfWiFiManager] Disconnected, reason=" + std::to_string(disconn->reason));
                     break;
             }
-
-            // Do NOT auto-retry here. Let caller decide whether to reconnect.
         } 
         else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
-            xEventGroupSetBits(client->wifiEventGroup, WIFI_CONNECTED_BIT);
-            client->status = WiFiConnectionStatus::Connected;
-            client->logger->Info(Tag::Untagged, "[EspidfWiFiManager] Got IP address, WiFi connected!");
+            esp_netif_ip_info_t ip_info;
+            esp_netif_t* netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+            if (esp_netif_get_ip_info(netif, &ip_info) == ESP_OK && ip_info.ip.addr != 0) {
+                xEventGroupSetBits(client->wifiEventGroup, WIFI_CONNECTED_BIT);
+                client->status = WiFiConnectionStatus::Connected;
+                client->logger->Info(Tag::Untagged, "[EspidfWiFiManager] Got IP, WiFi connected");
+            }
         }
     }
 
@@ -86,7 +89,7 @@ class EspidfWiFiManager : public IWiFiManager {
     Public EspidfWiFiManager() {
         wifiEventGroup = xEventGroupCreate();
         status = WiFiConnectionStatus::Disconnected;
-        InitNVS(); // safe now, won’t crash
+        InitNVS();
     }
 
     Public Virtual Bool Connect(CStdString ssid, const Optional<CStdString> password) override {
@@ -94,10 +97,19 @@ class EspidfWiFiManager : public IWiFiManager {
         this->password = password.has_value() ? password.value() : "";
 
         logger->Info(Tag::Untagged, "[EspidfWiFiManager] Starting WiFi connection to SSID: " + ssid);
+        static esp_netif_t* sta_netif = nullptr;
+        if (sta_netif) {
+            esp_netif_destroy(sta_netif);
+            sta_netif = nullptr;
+        }
+
+        esp_wifi_deinit(); // safe even if not initialized
 
         if (esp_netif_init() != ESP_OK) return false;
-        if (esp_event_loop_create_default() != ESP_OK) return false;
-        if (!esp_netif_create_default_wifi_sta()) return false;
+        if (esp_event_loop_create_default() != ESP_OK && esp_event_loop_create_default() != ESP_ERR_INVALID_STATE) return false;
+
+        sta_netif = esp_netif_create_default_wifi_sta();
+        if (!sta_netif) return false;
 
         wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
         if (esp_wifi_init(&cfg) != ESP_OK) return false;
@@ -123,19 +135,18 @@ class EspidfWiFiManager : public IWiFiManager {
         if (esp_wifi_set_config(WIFI_IF_STA, &wifi_config) != ESP_OK) return false;
         if (esp_wifi_start() != ESP_OK) return false;
 
+        esp_netif_dhcpc_start(sta_netif);
+
         status = WiFiConnectionStatus::Connecting;
         return true;
     }
 
     Public Virtual Void Disconnect() override {
-        esp_err_t err = esp_wifi_disconnect();
-        if (err == ESP_ERR_WIFI_NOT_INIT || err == ESP_ERR_WIFI_NOT_STARTED) {
-            logger->Warning(Tag::Untagged, "[EspidfWiFiManager] Disconnect called but WiFi not running");
-        } else if (err != ESP_OK) {
-            logger->Error(Tag::Untagged, "[EspidfWiFiManager] esp_wifi_disconnect failed: " + std::to_string(err));
-        }
+        esp_wifi_stop();
+        esp_wifi_disconnect();
+        esp_wifi_deinit();
         status = WiFiConnectionStatus::Disconnected;
-        logger->Info(Tag::Untagged, "[EspidfWiFiManager] Disconnected from WiFi");
+        logger->Info(Tag::Untagged, "[EspidfWiFiManager] Disconnected");
     }
 
     Public Virtual Bool IsConnected() const override {
@@ -144,8 +155,8 @@ class EspidfWiFiManager : public IWiFiManager {
 
     Public Virtual Bool WaitForConnection(Int timeoutMs) override {
         Int elapsed = 0;
-        const Int intervalMs = 2000; // retry every 2 seconds
-    
+        const Int intervalMs = 2000;
+
         while (elapsed < timeoutMs) {
             EventBits_t bits = xEventGroupWaitBits(
                 wifiEventGroup,
@@ -154,24 +165,28 @@ class EspidfWiFiManager : public IWiFiManager {
                 pdFALSE,
                 pdMS_TO_TICKS(intervalMs)
             );
-    
+
             if (bits & WIFI_CONNECTED_BIT) {
-                status = WiFiConnectionStatus::Connected;
-                return true; // Connected
+                esp_netif_ip_info_t ip_info;
+                esp_netif_t* netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+                if (esp_netif_get_ip_info(netif, &ip_info) == ESP_OK && ip_info.ip.addr != 0) {
+                    status = WiFiConnectionStatus::Connected;
+                    return true;
+                }
             }
     
             // If not connected, retry connect
             logger->Warning(Tag::Untagged, "[EspidfWiFiManager] Retry WiFi connect...");
+
             esp_wifi_connect();
-    
             elapsed += intervalMs;
         }
-    
+
         status = WiFiConnectionStatus::Timeout;
         logger->Error(Tag::Untagged, "[EspidfWiFiManager] Connection timed out after " + std::to_string(timeoutMs) + " ms");
         return false;
     }
-    
+
     Public Virtual WiFiConnectionStatus GetStatus() const override {
         return status;
     }
@@ -189,9 +204,7 @@ class EspidfWiFiManager : public IWiFiManager {
 
     Public Virtual StdString GetMACAddress() const override {
         uint8_t mac[6];
-        if (esp_wifi_get_mac(WIFI_IF_STA, mac) != ESP_OK) {
-            return "";
-        }
+        if (esp_wifi_get_mac(WIFI_IF_STA, mac) != ESP_OK) return "";
         Char buf[18];
         sprintf(buf, "%02X:%02X:%02X:%02X:%02X:%02X",
                 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
@@ -202,13 +215,11 @@ class EspidfWiFiManager : public IWiFiManager {
         StdVector<StdString> networks;
         uint16_t number = 20;
         wifi_ap_record_t ap_info[20];
-        uint16_t ap_count = 0;
         memset(ap_info, 0, sizeof(ap_info));
 
         if (esp_wifi_scan_start(NULL, true) == ESP_OK &&
             esp_wifi_scan_get_ap_records(&number, ap_info) == ESP_OK) {
-            ap_count = number;
-            for (int i = 0; i < ap_count; i++) {
+            for (int i = 0; i < number; i++) {
                 networks.push_back(StdString(reinterpret_cast<Char*>(ap_info[i].ssid)));
             }
         } else {
