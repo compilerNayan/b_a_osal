@@ -156,6 +156,7 @@ class EspidfWiFiManager : public IWiFiManager {
             );
     
             if (bits & WIFI_CONNECTED_BIT) {
+                status = WiFiConnectionStatus::Connected;
                 return true; // Connected
             }
     

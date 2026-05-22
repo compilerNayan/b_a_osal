@@ -114,9 +114,9 @@ class EspidfMqttClient final : public IMqttClient {
                     auto err = event->error_handle;
                     client->logger->Error(Tag::Untagged,
                         "Error type=" + std::to_string(err->error_type) +
-                        " tls_last_err=" + std::to_string(err->esp_tls_last_err) +
+                        " tls_last_esp_err=" + std::to_string(err->esp_tls_last_esp_err) +
                         " tls_stack_err=" + std::to_string(err->esp_tls_stack_err) +
-                        " transport_sock_errno=" + std::to_string(err->transport_sock_errno));
+                        " transport_sock_errno=" + std::to_string(err->esp_transport_sock_errno));
                 }
                 break;
             }
@@ -178,7 +178,6 @@ class EspidfMqttClient final : public IMqttClient {
     }
 
     Public Virtual Bool Disconnect() override {
-        if (!running) return false;
         if (client) {
             esp_mqtt_client_stop(client);
             esp_mqtt_client_destroy(client);
