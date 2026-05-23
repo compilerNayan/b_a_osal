@@ -37,7 +37,7 @@ class EspidfHttpClient final : public IHttpClient {
         config.url = url.c_str();
         config.method = method;
         config.timeout_ms = 10000;
-        config.crt_bundle_attach = esp_crt_bundle_attach;   // enables HTTPS CA bundle
+        config.crt_bundle_attach = esp_crt_bundle_attach;
         config.event_handler = HttpEventHandler;            // use static member
         config.user_data = &response;                       // response buffer
 
