@@ -85,20 +85,6 @@ class EspidfHttpClient final : public IHttpClient {
         return Request(url, HTTP_METHOD_DELETE, body, contentType);
     }
 
-    Public Static IHttpClientPtr GetInstance() {
-        static IHttpClientPtr instance(new EspidfHttpClient());
-        return instance;
-    }
-};
-
-template <>
-struct Implementation<IHttpClient> {
-    using type = EspidfHttpClient;
-};
-
-template <>
-struct Implementation<IHttpClient*> {
-    using type = EspidfHttpClient*;
 };
 
 #endif // ESPIDF_HTTP_CLIENT_EXP_INTERNAL_H
