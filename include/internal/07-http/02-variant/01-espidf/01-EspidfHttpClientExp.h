@@ -1,8 +1,6 @@
-#ifdef LEIRJSJE
 #ifdef ESP_PLATFORM
-#ifndef HTTP_CLIENT_INTERNAL_H
-#define HTTP_CLIENT_INTERNAL_H
-
+#ifndef ESPIDF_HTTP_CLIENT_EXP_INTERNAL_H
+#define ESPIDF_HTTP_CLIENT_EXP_INTERNAL_H
 
 #include "esp_http_client.h"
 #include "esp_crt_bundle.h"
@@ -15,9 +13,8 @@
 class EspidfHttpClient final : public IHttpClient {
 
     /* @Autowired */
-    Private ILoggerPtr logger;
+    Private ILoggerPtr logger = Implementation<ILogger>::type::GetInstance();
 
-    // Static event handler inside the class
     Private Static esp_err_t HttpEventHandler(esp_http_client_event_t *evt) {
         if (evt->event_id == HTTP_EVENT_ON_DATA && evt->data_len > 0) {
             StdString* resp = (StdString*) evt->user_data;
@@ -39,8 +36,9 @@ class EspidfHttpClient final : public IHttpClient {
         config.method = method;
         config.timeout_ms = 10000;
         config.crt_bundle_attach = esp_crt_bundle_attach;
-        config.event_handler = HttpEventHandler;            // use static member
-        config.user_data = &response;                       // response buffer
+        config.skip_cert_common_name_check = false;
+        config.event_handler = HttpEventHandler;
+        config.user_data = &response;
 
         esp_http_client_handle_t client = esp_http_client_init(&config);
         if (!client) {
@@ -86,8 +84,22 @@ class EspidfHttpClient final : public IHttpClient {
                                     CStdString& contentType) {
         return Request(url, HTTP_METHOD_DELETE, body, contentType);
     }
+
+    Public Static IHttpClientPtr GetInstance() {
+        static IHttpClientPtr instance(new EspidfHttpClient());
+        return instance;
+    }
 };
 
-#endif // HTTP_CLIENT_INTERNAL_H
+template <>
+struct Implementation<IHttpClient> {
+    using type = EspidfHttpClient;
+};
+
+template <>
+struct Implementation<IHttpClient*> {
+    using type = EspidfHttpClient*;
+};
+
+#endif // ESPIDF_HTTP_CLIENT_EXP_INTERNAL_H
 #endif // ESP_PLATFORM
-#endif // LEIRJSJE
