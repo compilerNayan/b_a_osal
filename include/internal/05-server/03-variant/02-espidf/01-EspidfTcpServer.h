@@ -17,6 +17,7 @@
 #include "util/GuidUtil.h"
 #include "util/Cache.h"
 #include "logger/ILogger.h"
+#include "Thread.h"
 
 #include "../../02-interface/01-ITcpServer.h"
 
@@ -114,6 +115,7 @@ class EspidfTcpServer final : public ITcpServer {
 
     Public Virtual Bool Restart() override {
         Stop();
+        Thread::Sleep(2000);
         return Start();
     }
 
