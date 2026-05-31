@@ -18,13 +18,10 @@
 #include "util/GuidUtil.h"
 
 #include "../../02-interface/02-IMqttClient.h"
-#include "../../02-interface/03-IAwsIotCoreConfigProvider.h"
 
 /* @Component */
 class EspidfMqttClient final : public IMqttClient {
 
-    /* @Autowired */
-    Private IAwsIotCoreConfigProviderPtr configProvider;
     /* @Autowired */
     Private ILoggerPtr logger;
 
@@ -132,9 +129,7 @@ class EspidfMqttClient final : public IMqttClient {
         }
     }
 
-    Public Explicit EspidfMqttClient()
-        : configProvider(Implementation<IAwsIotCoreConfigProvider>::type::GetInstance()),
-          logger(Implementation<ILogger>::type::GetInstance()),
+    Public Explicit EspidfMqttClient() : 
           client(nullptr),
           running(false) {}
 
@@ -142,22 +137,20 @@ class EspidfMqttClient final : public IMqttClient {
         Disconnect();
     }
 
-    Public Virtual Bool Connect() override {
+    Public Virtual Bool Connect(CStdString mqttEndpoint, CStdString clientId, CStdString caCert, CStdString deviceCert, CStdString privateKey) override {
         if (running) return true;
-
-        StdString endpoint = configProvider->GetEndpoint();
-        brokerUri = BuildMqttUri(endpoint);
-        clientId = configProvider->GetThingName();
-        caCert = configProvider->GetCaCert();
-        deviceCert = configProvider->GetDeviceCert();
-        privateKey = configProvider->GetPrivateKey();
+        this->brokerUri = mqttEndpoint;//BuildMqttUri(endpoint);
+        this->clientId = clientId;
+        this->caCert = caCert;
+        this->deviceCert = deviceCert;
+        this->privateKey = privateKey;
 
         esp_mqtt_client_config_t mqtt_cfg = {};
-        mqtt_cfg.broker.address.uri = brokerUri.c_str();
-        mqtt_cfg.broker.verification.certificate = caCert.c_str();
-        mqtt_cfg.credentials.client_id = clientId.c_str();
-        mqtt_cfg.credentials.authentication.certificate = deviceCert.c_str();
-        mqtt_cfg.credentials.authentication.key = privateKey.c_str();
+        mqtt_cfg.broker.address.uri = this->brokerUri.c_str();
+        mqtt_cfg.broker.verification.certificate = this->caCert.c_str();
+        mqtt_cfg.credentials.client_id = this->clientId.c_str();
+        mqtt_cfg.credentials.authentication.certificate = this->deviceCert.c_str();
+        mqtt_cfg.credentials.authentication.key = this->privateKey.c_str();
 
         client = esp_mqtt_client_init(&mqtt_cfg);
         if (!client) {
