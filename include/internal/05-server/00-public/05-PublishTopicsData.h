@@ -1,0 +1,6 @@
+#ifndef PUBLISHTOPICS_DATA_PUBLIC_H
+#define PUBLISHTOPICS_DATA_PUBLIC_H
+
+#include "../01-type/03-PublishTopicsData.h"
+
+#endif // PUBLISHTOPICS_DATA_PUBLIC_H

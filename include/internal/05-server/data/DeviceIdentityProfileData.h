@@ -2,8 +2,8 @@
 #define DEVICEIDENTITYPROFILEDATA_H
 
 #include <StandardDefines.h>
-#include "../type/PublishTopicsData.h"
-#include "../type/SubscribeTopicsData.h"
+#include "type/PublishTopicsData.h"
+#include "type/SubscribeTopicsData.h"
 
 class DeviceIdentityProfileData {
     Public StdString mqttEndpoint;

@@ -187,7 +187,8 @@ class EspidfMqttClient final : public IMqttClient {
 
     Public Virtual Bool RefreshConnection() override {
         Disconnect();
-        return Connect();
+        Thread::Sleep(5000);
+        return Connect(this->brokerUri, this->clientId, this->caCert, this->deviceCert, this->privateKey);
     }
 
     Public Virtual Bool WaitForConnection(Int timeoutMs) override {

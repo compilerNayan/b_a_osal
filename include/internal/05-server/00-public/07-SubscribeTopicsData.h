@@ -1,0 +1,6 @@
+#ifndef SUBSCRIBETOPICS_DATA_PUBLIC_H
+#define SUBSCRIBETOPICS_DATA_PUBLIC_H
+
+#include "../01-type/05-SubscribeTopicsData.h"
+
+#endif // SUBSCRIBETOPICS_DATA_PUBLIC_H

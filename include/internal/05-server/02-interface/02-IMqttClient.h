@@ -9,7 +9,7 @@ class IMqttClient {
     Public Virtual ~IMqttClient() = default;
     
     // Lifecycle
-    Public Virtual Bool Connect() = 0;
+    Public Virtual Bool Connect(CStdString mqttEndpoint, CStdString clientId, CStdString caCert, CStdString deviceCert, CStdString privateKey) = 0;
     Public Virtual Bool Disconnect() = 0;
     Public Virtual Bool IsConnected() const = 0;
     Public Virtual Bool RefreshConnection() = 0;
