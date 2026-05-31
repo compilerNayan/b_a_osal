@@ -18,6 +18,7 @@
 #include "util/GuidUtil.h"
 
 #include "../../02-interface/02-IMqttClient.h"
+#include "../../data/DeviceIdentityProfileData.h"
 
 /* @Component */
 class EspidfMqttClient final : public IMqttClient {
@@ -137,13 +138,13 @@ class EspidfMqttClient final : public IMqttClient {
         Disconnect();
     }
 
-    Public Virtual Bool Connect(CStdString mqttEndpoint, CStdString clientId, CStdString caCert, CStdString deviceCert, CStdString privateKey) override {
+    Public Virtual Bool Connect(const DeviceIdentityProfileData& deviceIdentityProfile) override {
         if (running) return true;
-        this->brokerUri = mqttEndpoint;//BuildMqttUri(endpoint);
-        this->clientId = clientId;
-        this->caCert = caCert;
-        this->deviceCert = deviceCert;
-        this->privateKey = privateKey;
+        this->brokerUri = deviceIdentityProfile.mqttEndpoint;//BuildMqttUri(endpoint);
+        this->clientId = deviceIdentityProfile.thingName;
+        this->caCert = deviceIdentityProfile.caCertificatePem;
+        this->deviceCert = deviceIdentityProfile.clientCertificatePem;
+        this->privateKey = deviceIdentityProfile.clientPrivateKeyPem;
 
         esp_mqtt_client_config_t mqtt_cfg = {};
         mqtt_cfg.broker.address.uri = this->brokerUri.c_str();
@@ -185,10 +186,10 @@ class EspidfMqttClient final : public IMqttClient {
         return running;
     }
 
-    Public Virtual Bool RefreshConnection() override {
+    Public Virtual Bool RefreshConnection(const DeviceIdentityProfileData& deviceIdentityProfile) override {
         Disconnect();
         Thread::Sleep(5000);
-        return Connect(this->brokerUri, this->clientId, this->caCert, this->deviceCert, this->privateKey);
+        return Connect(deviceIdentityProfile);
     }
 
     Public Virtual Bool WaitForConnection(Int timeoutMs) override {
