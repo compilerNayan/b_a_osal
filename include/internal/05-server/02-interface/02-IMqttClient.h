@@ -3,16 +3,17 @@
 
 #include <StandardDefines.h>
 #include "../01-type/01-MqttMessage.h"
+#include "../data/DeviceIdentityProfileData.h"
 
 DefineStandardPointers(IMqttClient)
 class IMqttClient {
     Public Virtual ~IMqttClient() = default;
     
     // Lifecycle
-    Public Virtual Bool Connect(CStdString mqttEndpoint, CStdString clientId, CStdString caCert, CStdString deviceCert, CStdString privateKey) = 0;
+    Public Virtual Bool Connect(const DeviceIdentityProfileData& deviceIdentityProfile) = 0;
     Public Virtual Bool Disconnect() = 0;
     Public Virtual Bool IsConnected() const = 0;
-    Public Virtual Bool RefreshConnection() = 0;
+    Public Virtual Bool RefreshConnection(const DeviceIdentityProfileData& deviceIdentityProfile) = 0;
     Public Virtual Bool WaitForConnection(Int timeoutMs) = 0;
 
     // Subscribe to a topic
