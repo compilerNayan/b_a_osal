@@ -72,6 +72,10 @@ class EspidfTcpServer final : public ITcpServer {
             logger->Error(Tag::Untagged, "Failed to create server socket");
             return false;
         }
+        
+        // Allow immediate reuse of the port
+        int opt = 1;
+        setsockopt(serverSock_, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
         // Set server socket non-blocking
         int flags = fcntl(serverSock_, F_GETFL, 0);
@@ -103,9 +107,29 @@ class EspidfTcpServer final : public ITcpServer {
 
     Public Virtual Bool Stop() override {
         if (!running_) return false;
-        close(serverSock_);
+    
+        // Close server socket cleanly
+        if (serverSock_ >= 0) {
+            shutdown(serverSock_, SHUT_RDWR);
+            close(serverSock_);
+            serverSock_ = -1;
+        }
+    
+        // Clear client sockets
+        socketCache_.Clear();
+    
+        // Clear buffers
+        {
+            std::lock_guard<std::mutex> lock(receiveMutex_);
+            receiveBuffer_.clear();
+        }
+        {
+            std::lock_guard<std::mutex> lock(sendMutex_);
+            sendBuffer_.clear();
+        }
+    
         running_ = false;
-        logger->Info(Tag::Untagged, "TCP server stopped");
+        logger->Info(Tag::Untagged, "TCP server stopped and port released");
         return true;
     }
 
