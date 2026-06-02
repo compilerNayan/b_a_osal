@@ -1,0 +1,6 @@
+#ifndef IDEVICEIDENTITYPROVIDER_PUBLIC_H
+#define IDEVICEIDENTITYPROVIDER_PUBLIC_H
+
+#include "../01-interface/01-IDeviceIdentityProvider.h"
+
+#endif // IDEVICEIDENTITYPROVIDER_PUBLIC_H

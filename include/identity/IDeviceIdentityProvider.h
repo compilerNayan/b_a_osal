@@ -1,0 +1,6 @@
+#ifndef IDEVICEIDENTITYPROVIDER_EXPORT_H
+#define IDEVICEIDENTITYPROVIDER_EXPORT_H
+
+#include "internal/08-identity/00-public/01-IDeviceIdentityProvider.h"
+
+#endif // IDEVICEIDENTITYPROVIDER_EXPORT_H
