@@ -12,6 +12,7 @@
 #include <fcntl.h>   // for fcntl()
 #include <deque>
 #include <mutex>
+#include "mdns.h"
 
 #include <StandardDefines.h>
 #include "util/GuidUtil.h"
@@ -101,6 +102,7 @@ class EspidfTcpServer final : public ITcpServer {
         running_ = true;
         receivedMessageCount_ = 0;
         sentMessageCount_ = 0;
+        InitMdns();
         logger->Info(Tag::Untagged, "TCP server started on port 8080");
         return true;
     }
@@ -245,6 +247,16 @@ class EspidfTcpServer final : public ITcpServer {
         std::lock_guard<std::mutex> lock(sendMutex_);
         return sendBuffer_.size();
     }
+
+    Private Void InitMdns() {
+        if (mdns_init() != ESP_OK) {
+            logger->Error(Tag::Untagged, "mDNS init failed");
+            return;
+        }
+        mdns_hostname_set("mydevice"); // sets mydevice.local
+        mdns_instance_name_set("ESP32 TCP Server");
+        logger->Info(Tag::Untagged, "mDNS responder started: http://mydevice.local:8080");
+    }    
 };
 
 #endif // ESPIDF_TCP_SERVER_INTERNAL_H
