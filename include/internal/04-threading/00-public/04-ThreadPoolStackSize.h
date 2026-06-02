@@ -1,0 +1,6 @@
+#ifndef THREADPOOLSTACKSIZE_PUBLIC_H
+#define THREADPOOLSTACKSIZE_PUBLIC_H
+
+#include "../01-type/02-ThreadPoolStackSize.h"
+
+#endif // THREADPOOLSTACKSIZE_PUBLIC_H
