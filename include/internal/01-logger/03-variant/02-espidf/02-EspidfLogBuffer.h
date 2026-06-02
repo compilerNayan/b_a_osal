@@ -23,9 +23,9 @@ class EspidfLogBuffer : public ILogBuffer {
         }
     }
 
-    Public LogBuffer() = default;
+    Public EspidfLogBuffer() = default;
 
-    Public Virtual ~LogBuffer() override = default;
+    Public Virtual ~EspidfLogBuffer() override = default;
 
     Public Void AddLog(ULongLong keyTimestampMs, const StdString& message) override {
         std::lock_guard<std::mutex> lock(mutex_);
