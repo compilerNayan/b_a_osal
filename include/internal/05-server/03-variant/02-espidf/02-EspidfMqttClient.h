@@ -103,8 +103,8 @@ class EspidfMqttClient final : public IMqttClient {
                 /*client->logger->Info(Tag::Untagged,
                     "Buffered message GUID=" + msg.guid +
                     " topic=" + topicx +
-                    " payload=" + msg.payload);
-                break; */
+                    " payload=" + msg.payload); */
+                break; 
             }
             case MQTT_EVENT_ERROR: {
                 client->logger->Error(Tag::Untagged, "MQTT_EVENT_ERROR occurred");
