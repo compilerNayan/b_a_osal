@@ -85,8 +85,8 @@ class EspidfMqttClient final : public IMqttClient {
                 break;
             }
             case MQTT_EVENT_PUBLISHED: {
-                client->logger->Info(Tag::Untagged,
-                    "Publish acknowledged msg_id=" + std::to_string(event->msg_id));
+                //client->logger->Info(Tag::Untagged,
+                //    "Publish acknowledged msg_id=" + std::to_string(event->msg_id));
                 break;
             }
             case MQTT_EVENT_DATA: {
