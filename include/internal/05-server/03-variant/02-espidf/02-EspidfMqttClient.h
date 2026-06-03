@@ -46,11 +46,24 @@ class EspidfMqttClient final : public IMqttClient {
     Private mutable std::mutex sendMutex_;
     Private mutable std::mutex subscriptionMutex_;
 
-    Private Static StdString BuildMqttUri(CStdString& endpoint) {
-        if (endpoint.find("://") != StdString::npos) {
-            return endpoint;
+    /** Ensures mqtts URI includes explicit port (ESP-TLS parser requires it for AWS IoT). */
+    Private Static StdString NormalizeMqttUri(const StdString& endpoint) {
+        StdString uri = endpoint;
+        if (uri.find("://") == StdString::npos) {
+            return "mqtts://" + uri + ":8883";
         }
-        return "mqtts://" + endpoint + ":8883";
+        const size_t hostStart = uri.find("://") + 3;
+        const size_t slash = uri.find('/', hostStart);
+        const size_t colon = uri.find(':', hostStart);
+        const Bool hasPort = (colon != StdString::npos && (slash == StdString::npos || colon < slash));
+        if (!hasPort) {
+            if (slash != StdString::npos) {
+                uri.insert(slash, ":8883");
+            } else {
+                uri += ":8883";
+            }
+        }
+        return uri;
     }
 
     Private Static Void MqttEventHandler(Void* handler_args,
@@ -141,9 +154,9 @@ class EspidfMqttClient final : public IMqttClient {
             return true;
         }
         if (client != nullptr) {
-            return true;
+            Disconnect();
         }
-        this->brokerUri = deviceIdentityProfile.mqttEndpoint;//BuildMqttUri(endpoint);
+        this->brokerUri = NormalizeMqttUri(deviceIdentityProfile.mqttEndpoint);
         this->clientId = deviceIdentityProfile.thingName;
         this->caCert = deviceIdentityProfile.caCertificatePem;
         this->deviceCert = deviceIdentityProfile.clientCertificatePem;
@@ -198,12 +211,8 @@ class EspidfMqttClient final : public IMqttClient {
     }
 
     Public Virtual Bool RefreshConnection(const DeviceIdentityProfileData& deviceIdentityProfile) override {
-        // Avoid tearing down an in-flight connect; repeated Refresh was aborting TLS handshakes.
-        if (client != nullptr && !running) {
-            return true;
-        }
         Disconnect();
-        Thread::Sleep(5000);
+        Thread::Sleep(2000);
         return Connect(deviceIdentityProfile);
     }
 
