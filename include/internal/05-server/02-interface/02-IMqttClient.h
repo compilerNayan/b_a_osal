@@ -12,6 +12,8 @@ class IMqttClient {
     // Lifecycle
     Public Virtual Bool Connect(const DeviceIdentityProfileData& deviceIdentityProfile) = 0;
     Public Virtual Bool Disconnect() = 0;
+    /** True if Connect/Refresh has created a client handle (may not be connected yet). */
+    Public Virtual Bool IsClientStarted() const = 0;
     Public Virtual Bool IsConnected() const = 0;
     Public Virtual Bool RefreshConnection(const DeviceIdentityProfileData& deviceIdentityProfile) = 0;
     Public Virtual Bool WaitForConnection(Int timeoutMs) = 0;

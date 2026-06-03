@@ -176,12 +176,18 @@ class EspidfMqttClient final : public IMqttClient {
         return true;
     }
 
+    Public Virtual Bool IsClientStarted() const override {
+        return client != nullptr;
+    }
+
     Public Virtual Bool Disconnect() override {
-        if (client) {
-            esp_mqtt_client_stop(client);
-            esp_mqtt_client_destroy(client);
-            client = nullptr;
+        if (!client) {
+            running = false;
+            return true;
         }
+        esp_mqtt_client_stop(client);
+        esp_mqtt_client_destroy(client);
+        client = nullptr;
         running = false;
         logger->Info(Tag::Untagged, "AWS IoT Core client stopped");
         return true;
