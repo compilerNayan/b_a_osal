@@ -1,6 +1,7 @@
 #ifndef ESPIDF_MQTT_CLIENT_INTERNAL_H
 #define ESPIDF_MQTT_CLIENT_INTERNAL_H
 
+#include <atomic>
 #include <cstdio>
 #include <esp_event.h>
 #include <mqtt_client.h>
@@ -29,9 +30,11 @@ class EspidfMqttClient final : public IMqttClient {
 
     Private esp_mqtt_client_handle_t client;
     Private Bool running;
+    Private std::atomic<bool> connectAttemptFailed_{false};
 
     // Broker config strings
     Private StdString brokerUri;
+    Private StdString brokerHost;
     Private StdString clientId;
     Private StdString caCert;
     Private StdString deviceCert;
@@ -66,6 +69,23 @@ class EspidfMqttClient final : public IMqttClient {
         return uri;
     }
 
+    Private Static Void ParseBrokerHostPort(const StdString& uri, StdString& host, Int& port) {
+        port = 8883;
+        host.clear();
+        const size_t scheme = uri.find("://");
+        const size_t hostStart = (scheme == StdString::npos) ? 0 : scheme + 3;
+        const size_t colon = uri.find(':', hostStart);
+        const size_t slash = uri.find('/', hostStart);
+        if (colon != StdString::npos && (slash == StdString::npos || colon < slash)) {
+            host = uri.substr(hostStart, colon - hostStart);
+            port = atoi(uri.c_str() + colon + 1);
+        } else if (slash != StdString::npos) {
+            host = uri.substr(hostStart, slash - hostStart);
+        } else {
+            host = uri.substr(hostStart);
+        }
+    }
+
     Private Static Void MqttEventHandler(Void* handler_args,
                                         esp_event_base_t base,
                                         Int32 event_id,
@@ -75,6 +95,7 @@ class EspidfMqttClient final : public IMqttClient {
 
         switch (event->event_id) {
             case MQTT_EVENT_CONNECTED: {
+                client->connectAttemptFailed_ = false;
                 client->logger->Info(Tag::Untagged, "MQTT connection established");
                 client->running = true;
                 break;
@@ -82,6 +103,7 @@ class EspidfMqttClient final : public IMqttClient {
             case MQTT_EVENT_DISCONNECTED: {
                 client->logger->Warning(Tag::Untagged, "MQTT disconnected from broker");
                 client->running = false;
+                client->connectAttemptFailed_ = true;
                 break;
             }
             case MQTT_EVENT_SUBSCRIBED: {
@@ -118,6 +140,7 @@ class EspidfMqttClient final : public IMqttClient {
             }
             case MQTT_EVENT_ERROR: {
                 client->running = false;
+                client->connectAttemptFailed_ = true;
                 client->logger->Error(Tag::Untagged, "MQTT_EVENT_ERROR occurred");
                 if (event->error_handle) {
                     auto err = event->error_handle;
@@ -157,13 +180,19 @@ class EspidfMqttClient final : public IMqttClient {
             Disconnect();
         }
         this->brokerUri = NormalizeMqttUri(deviceIdentityProfile.mqttEndpoint);
+        Int brokerPort = 8883;
+        ParseBrokerHostPort(this->brokerUri, this->brokerHost, brokerPort);
         this->clientId = deviceIdentityProfile.thingName;
         this->caCert = deviceIdentityProfile.caCertificatePem;
         this->deviceCert = deviceIdentityProfile.clientCertificatePem;
         this->privateKey = deviceIdentityProfile.clientPrivateKeyPem;
 
+        connectAttemptFailed_ = false;
+
         esp_mqtt_client_config_t mqtt_cfg = {};
-        mqtt_cfg.broker.address.uri = this->brokerUri.c_str();
+        mqtt_cfg.broker.address.hostname = this->brokerHost.c_str();
+        mqtt_cfg.broker.address.port = brokerPort;
+        mqtt_cfg.broker.address.transport = MQTT_TRANSPORT_OVER_SSL;
         mqtt_cfg.broker.verification.certificate = this->caCert.c_str();
         mqtt_cfg.credentials.client_id = this->clientId.c_str();
         mqtt_cfg.credentials.authentication.certificate = this->deviceCert.c_str();
@@ -185,7 +214,8 @@ class EspidfMqttClient final : public IMqttClient {
             return false;
         }
 
-        logger->Info(Tag::Untagged, "AWS IoT Core client started uri=" + brokerUri);
+        logger->Info(Tag::Untagged,
+            "AWS IoT Core client started host=" + brokerHost + " port=" + std::to_string(brokerPort));
         return true;
     }
 
@@ -227,6 +257,11 @@ class EspidfMqttClient final : public IMqttClient {
                 logger->Info(Tag::Untagged,
                     "MQTT connection established after " + std::to_string(waited) + "ms");
                 return true;
+            }
+            if (connectAttemptFailed_) {
+                logger->Warning(Tag::Untagged,
+                    "MQTT connect attempt failed after " + std::to_string(waited) + "ms");
+                return false;
             }
             vTaskDelay(pdMS_TO_TICKS(intervalMs));
             waited += intervalMs;
