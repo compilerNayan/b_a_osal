@@ -100,10 +100,6 @@ class EspidfMqttClient final : public IMqttClient {
                     client->receiveBuffer_[topicx].push_back(msg);
                 }
 
-                client->logger->Info(Tag::Untagged,
-                    "Buffered message GUID=" + msg.guid +
-                    " topic=" + topicx +
-                    " payload=" + msg.payload);
                 break;
             }
             case MQTT_EVENT_ERROR: {
@@ -250,10 +246,6 @@ class EspidfMqttClient final : public IMqttClient {
         if (id == -1) {
             logger->Error(Tag::Untagged,
                 "Publish failed GUID=" + msg.guid + " topic=" + topic);
-        } else {
-            logger->Info(Tag::Untagged,
-                "Published GUID=" + msg.guid + " topic=" + topic +
-                " payload=" + msg.payload);
         }
     }
 
