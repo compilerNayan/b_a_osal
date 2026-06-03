@@ -62,15 +62,11 @@ class EspidfMqttClient final : public IMqttClient {
 
         switch (event->event_id) {
             case MQTT_EVENT_CONNECTED: {
-                printf("[Nayan] MQTT_EVENT_CONNECTED running=1 client=%p\n",
-                       (void*)client->client);
                 client->logger->Info(Tag::Untagged, "MQTT connection established");
                 client->running = true;
                 break;
             }
             case MQTT_EVENT_DISCONNECTED: {
-                printf("[Nayan] MQTT_EVENT_DISCONNECTED running=0 client=%p\n",
-                       (void*)client->client);
                 client->logger->Warning(Tag::Untagged, "MQTT disconnected from broker");
                 client->running = false;
                 break;
@@ -112,25 +108,15 @@ class EspidfMqttClient final : public IMqttClient {
                 client->logger->Error(Tag::Untagged, "MQTT_EVENT_ERROR occurred");
                 if (event->error_handle) {
                     auto err = event->error_handle;
-                    printf("[Nayan] MQTT_EVENT_ERROR type=%d tls_last_esp_err=%d tls_stack_err=%d sock_errno=%d client=%p\n",
-                           err->error_type,
-                           err->esp_tls_last_esp_err,
-                           err->esp_tls_stack_err,
-                           err->esp_transport_sock_errno,
-                           (void*)client->client);
                     client->logger->Error(Tag::Untagged,
                         "Error type=" + std::to_string(err->error_type) +
                         " tls_last_esp_err=" + std::to_string(err->esp_tls_last_esp_err) +
                         " tls_stack_err=" + std::to_string(err->esp_tls_stack_err) +
                         " transport_sock_errno=" + std::to_string(err->esp_transport_sock_errno));
-                } else {
-                    printf("[Nayan] MQTT_EVENT_ERROR (no error_handle) client=%p\n", (void*)client->client);
                 }
                 break;
             }
             case MQTT_EVENT_BEFORE_CONNECT: {
-                printf("[Nayan] MQTT_EVENT_BEFORE_CONNECT client=%p running=%d\n",
-                       (void*)client->client, client->running ? 1 : 0);
                 client->logger->Info(Tag::Untagged, "MQTT_EVENT_BEFORE_CONNECT: preparing to connect");
                 break;
             }
@@ -152,17 +138,11 @@ class EspidfMqttClient final : public IMqttClient {
 
     Public Virtual Bool Connect(const DeviceIdentityProfileData& deviceIdentityProfile) override {
         if (running) {
-            printf("[Nayan] Connect skipped: already running client=%p\n", (void*)client);
             return true;
         }
         if (client != nullptr) {
-            printf("[Nayan] Connect skipped: client already started (in-flight) client=%p running=%d\n",
-                   (void*)client, running ? 1 : 0);
             return true;
         }
-        printf("[Nayan] Connect starting uri=%s thing=%s\n",
-               deviceIdentityProfile.mqttEndpoint.c_str(),
-               deviceIdentityProfile.thingName.c_str());
         this->brokerUri = deviceIdentityProfile.mqttEndpoint;//BuildMqttUri(endpoint);
         this->clientId = deviceIdentityProfile.thingName;
         this->caCert = deviceIdentityProfile.caCertificatePem;
@@ -175,31 +155,28 @@ class EspidfMqttClient final : public IMqttClient {
         mqtt_cfg.credentials.client_id = this->clientId.c_str();
         mqtt_cfg.credentials.authentication.certificate = this->deviceCert.c_str();
         mqtt_cfg.credentials.authentication.key = this->privateKey.c_str();
+        // Reconnect only when MqttClientManager calls Connect/Refresh (internet must be up).
+        mqtt_cfg.network.disable_auto_reconnect = true;
 
         client = esp_mqtt_client_init(&mqtt_cfg);
         if (!client) {
-            printf("[Nayan] Connect failed: esp_mqtt_client_init returned null\n");
             logger->Error(Tag::Untagged, "MQTT client init failed for uri=" + brokerUri);
             return false;
         }
 
         esp_mqtt_client_register_event(client, MQTT_EVENT_ANY, MqttEventHandler, this);
         if (esp_mqtt_client_start(client) != ESP_OK) {
-            printf("[Nayan] Connect failed: esp_mqtt_client_start != ESP_OK client=%p\n", (void*)client);
             logger->Error(Tag::Untagged, "MQTT client start failed for uri=" + brokerUri);
             esp_mqtt_client_destroy(client);
             client = nullptr;
             return false;
         }
 
-        printf("[Nayan] Connect started async client=%p (running still %d until CONNECTED event)\n",
-               (void*)client, running ? 1 : 0);
         logger->Info(Tag::Untagged, "AWS IoT Core client started uri=" + brokerUri);
         return true;
     }
 
     Public Virtual Bool Disconnect() override {
-        printf("[Nayan] Disconnect client=%p running=%d\n", (void*)client, running ? 1 : 0);
         if (client) {
             esp_mqtt_client_stop(client);
             esp_mqtt_client_destroy(client);
@@ -217,12 +194,8 @@ class EspidfMqttClient final : public IMqttClient {
     Public Virtual Bool RefreshConnection(const DeviceIdentityProfileData& deviceIdentityProfile) override {
         // Avoid tearing down an in-flight connect; repeated Refresh was aborting TLS handshakes.
         if (client != nullptr && !running) {
-            printf("[Nayan] RefreshConnection: connect in progress, skip disconnect client=%p\n",
-                   (void*)client);
             return true;
         }
-        printf("[Nayan] RefreshConnection: full teardown+restart running=%d client=%p\n",
-               running ? 1 : 0, (void*)client);
         Disconnect();
         Thread::Sleep(5000);
         return Connect(deviceIdentityProfile);
@@ -231,15 +204,11 @@ class EspidfMqttClient final : public IMqttClient {
     Public Virtual Bool WaitForConnection(Int timeoutMs) override {
         if (running) return true;
 
-        printf("[Nayan] WaitForConnection begin timeoutMs=%d client=%p running=%d\n",
-               timeoutMs, (void*)client, running ? 1 : 0);
-
         const Int intervalMs = 100;
         Int waited = 0;
 
         while (waited < timeoutMs) {
             if (IsConnected()) {
-                printf("[Nayan] WaitForConnection OK after %dms client=%p\n", waited, (void*)client);
                 logger->Info(Tag::Untagged,
                     "MQTT connection established after " + std::to_string(waited) + "ms");
                 return true;
@@ -248,8 +217,6 @@ class EspidfMqttClient final : public IMqttClient {
             waited += intervalMs;
         }
 
-        printf("[Nayan] WaitForConnection TIMEOUT after %dms client=%p running=%d\n",
-               waited, (void*)client, running ? 1 : 0);
         logger->Warning(Tag::Untagged,
             "MQTT connection not established within timeout=" + std::to_string(timeoutMs) + "ms");
         return false;
