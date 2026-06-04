@@ -22,6 +22,8 @@
 
 #include "../../02-interface/01-ITcpServer.h"
 
+#include "identity/IDeviceIdentityProvider.h"
+
 /* @Component */
 class EspidfTcpServer final : public ITcpServer {
     Private struct SocketEntry {
@@ -32,6 +34,9 @@ class EspidfTcpServer final : public ITcpServer {
             }
         }
     };
+
+    /* @Autowired */
+    Private IDeviceIdentityProviderPtr deviceIdentityProvider;
 
     Private Cache<StdString, std::shared_ptr<SocketEntry>> socketCache_{180000}; // 3 min TTL
 
@@ -252,10 +257,11 @@ class EspidfTcpServer final : public ITcpServer {
         if (mdns_init() != ESP_OK) {
             logger->Error(Tag::Untagged, "mDNS init failed");
             return;
-        }
-        mdns_hostname_set("mydevice"); // sets mydevice.local
+        }   
+        StdString hostname = deviceIdentityProvider->GetSerialNumber();
+        mdns_hostname_set(hostname.c_str()); // sets mydevice.local
         mdns_instance_name_set("ESP32 TCP Server");
-        logger->Info(Tag::Untagged, "mDNS responder started: http://mydevice.local:8080");
+        logger->Info(Tag::Untagged, "mDNS responder started: http://" + hostname + ".local:8080");
     }    
 };
 
