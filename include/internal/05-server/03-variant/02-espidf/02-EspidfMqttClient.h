@@ -73,7 +73,7 @@ class EspidfMqttClient final : public IMqttClient {
             " largest_block=" + std::to_string(snap.largestBlock));
     }
 
-    Private Void LogRefreshHeapDelta(const HeapSnapshot& before, const HeapSnapshot& after) {
+    Private Void LogRefreshHeapDelta(const char* phase, const HeapSnapshot& before, const HeapSnapshot& after) {
         const long freeDelta =
             static_cast<long>(after.freeBytes) - static_cast<long>(before.freeBytes);
         const long minDelta =
@@ -81,7 +81,8 @@ class EspidfMqttClient final : public IMqttClient {
         const long largestDelta =
             static_cast<long>(after.largestBlock) - static_cast<long>(before.largestBlock);
         logger->Info(Tag::Untagged,
-            "RefreshConnection heap delta heap_free=" + std::to_string(freeDelta) +
+            StdString("RefreshConnection heap delta ") + phase +
+            " heap_free=" + std::to_string(freeDelta) +
             " heap_min=" + std::to_string(minDelta) +
             " largest_block=" + std::to_string(largestDelta));
     }
@@ -260,15 +261,26 @@ class EspidfMqttClient final : public IMqttClient {
         return client != nullptr;
     }
 
+    Private Void ClearBrokerConfigStrings() {
+        brokerUri.clear();
+        brokerHost.clear();
+        clientId.clear();
+        caCert.clear();
+        deviceCert.clear();
+        privateKey.clear();
+    }
+
     Public Virtual Bool Disconnect() override {
         if (!client) {
             running = false;
+            ClearBrokerConfigStrings();
             return true;
         }
         esp_mqtt_client_stop(client);
         esp_mqtt_client_destroy(client);
         client = nullptr;
         running = false;
+        ClearBrokerConfigStrings();
         logger->Info(Tag::Untagged, "AWS IoT Core client stopped");
         return true;
     }
@@ -279,15 +291,20 @@ class EspidfMqttClient final : public IMqttClient {
 
     Public Virtual Bool RefreshConnection(const DeviceIdentityProfileData& deviceIdentityProfile) override {
         const HeapSnapshot heapBefore = HeapSnapshot::Capture();
-        LogRefreshHeap("before", heapBefore);
+        LogRefreshHeap("before_disconnect", heapBefore);
 
         Disconnect();
         Thread::Sleep(2000);
+
+        const HeapSnapshot heapAfterDisconnect = HeapSnapshot::Capture();
+        LogRefreshHeap("after_disconnect", heapAfterDisconnect);
+        LogRefreshHeapDelta("disconnect", heapBefore, heapAfterDisconnect);
+
         const Bool connected = Connect(deviceIdentityProfile);
 
-        const HeapSnapshot heapAfter = HeapSnapshot::Capture();
-        LogRefreshHeap("after", heapAfter);
-        LogRefreshHeapDelta(heapBefore, heapAfter);
+        const HeapSnapshot heapAfterStart = HeapSnapshot::Capture();
+        LogRefreshHeap("after_start", heapAfterStart);
+        LogRefreshHeapDelta("start", heapAfterDisconnect, heapAfterStart);
 
         return connected;
     }
