@@ -2,7 +2,8 @@
 #define ESPIDF_MQTT_CLIENT_INTERNAL_H
 
 #include <atomic>
-#include <cstdio>
+#include <cstddef>
+#include "esp_heap_caps.h"
 #include <esp_event.h>
 #include <mqtt_client.h>
 #include <string>
@@ -48,6 +49,42 @@ class EspidfMqttClient final : public IMqttClient {
     Private mutable std::mutex receiveMutex_;
     Private mutable std::mutex sendMutex_;
     Private mutable std::mutex subscriptionMutex_;
+
+    struct HeapSnapshot {
+        size_t freeBytes;
+        size_t minFreeBytes;
+        size_t largestBlock;
+
+        static HeapSnapshot Capture() {
+            const UInt32 caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
+            return {
+                esp_get_free_heap_size(),
+                esp_get_minimum_free_heap_size(),
+                heap_caps_get_largest_free_block(caps)
+            };
+        }
+    };
+
+    Private Void LogRefreshHeap(const char* label, const HeapSnapshot& snap) {
+        logger->Info(Tag::Untagged,
+            StdString("RefreshConnection heap ") + label +
+            " heap_free=" + std::to_string(snap.freeBytes) +
+            " heap_min=" + std::to_string(snap.minFreeBytes) +
+            " largest_block=" + std::to_string(snap.largestBlock));
+    }
+
+    Private Void LogRefreshHeapDelta(const HeapSnapshot& before, const HeapSnapshot& after) {
+        const long freeDelta =
+            static_cast<long>(after.freeBytes) - static_cast<long>(before.freeBytes);
+        const long minDelta =
+            static_cast<long>(after.minFreeBytes) - static_cast<long>(before.minFreeBytes);
+        const long largestDelta =
+            static_cast<long>(after.largestBlock) - static_cast<long>(before.largestBlock);
+        logger->Info(Tag::Untagged,
+            "RefreshConnection heap delta heap_free=" + std::to_string(freeDelta) +
+            " heap_min=" + std::to_string(minDelta) +
+            " largest_block=" + std::to_string(largestDelta));
+    }
 
     /** Ensures mqtts URI includes explicit port (ESP-TLS parser requires it for AWS IoT). */
     Private Static StdString NormalizeMqttUri(const StdString& endpoint) {
@@ -241,9 +278,18 @@ class EspidfMqttClient final : public IMqttClient {
     }
 
     Public Virtual Bool RefreshConnection(const DeviceIdentityProfileData& deviceIdentityProfile) override {
+        const HeapSnapshot heapBefore = HeapSnapshot::Capture();
+        LogRefreshHeap("before", heapBefore);
+
         Disconnect();
         Thread::Sleep(2000);
-        return Connect(deviceIdentityProfile);
+        const Bool connected = Connect(deviceIdentityProfile);
+
+        const HeapSnapshot heapAfter = HeapSnapshot::Capture();
+        LogRefreshHeap("after", heapAfter);
+        LogRefreshHeapDelta(heapBefore, heapAfter);
+
+        return connected;
     }
 
     Public Virtual Bool WaitForConnection(Int timeoutMs) override {
