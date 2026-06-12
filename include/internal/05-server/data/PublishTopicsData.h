@@ -8,6 +8,9 @@ class PublishTopicsData {
     Public StdString telemetryTopic;
     Public StdString logsTopic;
     Public StdString eventsTopic;
+    Public StdString water30mBucketTopic;
+    Public StdString water1sBucketTopic;
+    Public StdString lifecycleEnrolledTopic;
 };
 
 #endif // PUBLISHTOPICS_DATA_H
