@@ -34,7 +34,7 @@ class EspidfLogSink final : public ILogSink {
         printf("[");
         printf(timeBuf);
         printf("] ");
-        printf(message.c_str());
+        printf("%s", message.c_str());
         printf("\n");
 
         static ULong seqPerSec = 0;
