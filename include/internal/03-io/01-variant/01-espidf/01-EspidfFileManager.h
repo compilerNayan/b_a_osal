@@ -47,6 +47,15 @@ class EspidfFileManager : public IFileManager {
         InitSPIFFS();
     }
 
+    Public Virtual Bool FileExists(CStdString& filename) override {
+        InitSPIFFS();
+        std::string path = "/spiffs/" + filename;
+        std::ifstream file(path);
+        Bool exists = file.is_open();
+        file.close();
+        return exists;
+    }
+
     Public Virtual Bool Create(CStdString& filename, CStdString& contents) override {
         InitSPIFFS();
         std::string path = "/spiffs/" + filename;
